@@ -41,3 +41,9 @@ export function vibrato(x, y, w = 16, size = 1) {
   for (let i = 0; i < 4; i++) p += ` q${w / 8} ${(i % 2 ? 3 : -3) * size} ${w / 4} 0`;
   return p;
 }
+
+// 4분쉼표: 번개 모양 (x = 가운데, y = 위쪽 끝)
+export function quarterRest(x, y, size = 1) {
+  const k = size;
+  return `M${x - 2 * k} ${y} L${x + 2.5 * k} ${y + 5 * k} L${x - 1.5 * k} ${y + 9 * k} L${x + 2.5 * k} ${y + 13 * k} Q${x - 3 * k} ${y + 11 * k} ${x - 0.5 * k} ${y + 17 * k}`;
+}

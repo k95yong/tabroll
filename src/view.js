@@ -3,7 +3,7 @@ import { store, noteName } from './state.js';
 import { STRING_NAMES, candidates } from './tab.js';
 import { peaksIn } from './waveform.js';
 import * as mk from './marks.js';
-import { notate } from './rhythm.js';
+import { notate, restBeats } from './rhythm.js';
 
 export const KEY_W = 48, RULER = 20, WAVE = 36, TOP = RULER + WAVE;
 export const TAB_TOP = 32, TAB_GAP = 20, TAB_PAD = 5, TAB_H = 182;
@@ -207,7 +207,7 @@ export class View {
       const { n, x, tw, label } = sp, on = store.sel.has(n.id), y = TAB_TOP + (n.string - 1) * TAB_GAP;
       g.font = `${on ? 800 : 600} 13px -apple-system`;
       g.fillStyle = on ? '#fce7f3' : '#f7f7f5'; g.fillRect(x - 2, y - 8, tw + 4, 16);
-      g.fillStyle = on ? '#db2777' : n.fret < 0 ? '#dc2626' : n.lockString ? '#1d4ed8' : '#111';
+      g.fillStyle = on ? '#db2777' : n.fret < 0 ? '#dc2626' : n.lockString && n.lockUser ? '#1d4ed8' : '#111';
       g.fillText(label, x, y + 5);
     }
     // 3) 주법 기호는 숫자를 다 그린 뒤 맨 위에 그려서 다른 음 숫자에 가리지 않게 한다
@@ -234,6 +234,12 @@ export class View {
 
   #rhythm(g) {
     if (!this.tabSpots.length) return;
+    // 쉬는 박
+    g.strokeStyle = '#333'; g.lineWidth = 1.6; g.lineJoin = 'round';
+    for (const r of restBeats([...store.tab.values()], store.P)) {
+      const x = this.X(r.t + store.beatLen * 0.4); if (x < KEY_W || x > this.w) continue;
+      g.stroke(new Path2D(mk.quarterRest(x, TAB_TOP + 5 * TAB_GAP + 8, 0.95)));
+    }
     const r = notate(this.tabSpots.map(sp => sp.n), store.P), top = TAB_TOP + 5 * TAB_GAP + 7, bot = top + 18;
     const groups = new Map();
     for (const sp of this.tabSpots) { const x = r.get(sp.n.id); if (x) (groups.get(x.groupKey) || groups.set(x.groupKey, []).get(x.groupKey)).push({ sp, x }); }
@@ -258,7 +264,7 @@ export class View {
           g.stroke();
         }
       }
-      if (rs[0].tuplet && grp.length > 1) {
+      if (rs[0].tuplet && grp.length >= 3) {
         const a = xs[0], b = xs.at(-1), y = bot + 7;
         g.lineWidth = 0.8; g.beginPath(); g.moveTo(a, y - 3); g.lineTo(a, y); g.lineTo(b, y); g.lineTo(b, y - 3); g.stroke();
         g.font = '9px -apple-system'; g.textAlign = 'center'; g.fillText(String(rs[0].tuplet), (a + b) / 2, y + 10); g.textAlign = 'left';

@@ -2,7 +2,7 @@
 // - 박마다 폭을 음 개수에 맞춰 정하고(빽빽한 박은 넓게), 마디를 한 줄에 들어가는 만큼 채운다.
 // - TAB 아래에 박자 꼬리(기둥·빔)와 셋잇단·여섯잇단 표시를 그린다.
 import { STRING_NAMES } from './tab.js';
-import { notate } from './rhythm.js';
+import { notate, restBeats } from './rhythm.js';
 import * as mk from './marks.js';
 
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -11,7 +11,7 @@ const W = 760, L = 34, R = 752, GAP = 14, TOP = 30, MIN_BEAT = 46, PER_NOTE = 19
 
 export function printHtml(p, tabbed, { autoPrint = true } = {}) {
   const placed = tabbed.filter(n => n.fret >= 0 && n.string).sort((a, b) => a.t - b.t);
-  const bpb = p.beatsPerBar, rhythm = notate(placed, p);
+  const bpb = p.beatsPerBar, rhythm = notate(placed, p), rests = restBeats(placed, p);
   const barOf = n => rhythm.get(n.id).bar;
   const first = placed.length ? Math.max(0, barOf(placed[0])) : 0, last = placed.length ? barOf(placed.at(-1)) : 0;
 
@@ -98,11 +98,16 @@ export function printHtml(p, tabbed, { autoPrint = true } = {}) {
             }
           }
         }
-        if (rs[0].tuplet && g.length > 1) {
+        if (rs[0].tuplet && g.length >= 3) {
           const a = xs[0], b = xs.at(-1), yy = stemBot + 8;
           parts.push(`<path d="M${a} ${yy - 3}V${yy}H${b}V${yy - 3}" fill="none" stroke="#555" stroke-width=".7"/>`);
           parts.push(`<text x="${(a + b) / 2}" y="${yy + 9}" font-size="8" text-anchor="middle" fill="#333">${rs[0].tuplet}</text>`);
         }
+      }
+      // 쉬는 박: 4분쉼표
+      for (const r of rests.filter(r => r.bar === bar.b)) {
+        const [b0, bw] = beatX[r.beatInBar];
+        parts.push(`<path d="${mk.quarterRest(b0 + bw * 0.35, stemTop + 2, 0.9)}" fill="none" stroke="#222" stroke-width="1.6" stroke-linejoin="round"/>`);
       }
       x += bar.natural * scale;
     }

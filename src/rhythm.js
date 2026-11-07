@@ -23,7 +23,9 @@ export function bestDivision(starts, beatStart, beat, allowed = DIVS) {
       err += ((t - beatStart - k * slot) / beat) ** 2;
       if (used.has(k)) clash++; used.add(k);
     }
-    const score = err / Math.max(1, starts.length) + cost + clash * 0.05;
+    // 음이 한두 개뿐인 박에 잇단음표를 쓰면 읽기 어렵다: 셋잇단·여섯잇단에 벌점을 더 준다
+    const sparse = starts.length <= 2 && (div === 3 || div === 6) ? 0.004 : 0;
+    const score = err / Math.max(1, starts.length) + cost + sparse + clash * 0.05;
     if (!best || score < best.score - 1e-9) best = { div, score };
   }
   return best.div;
@@ -100,4 +102,18 @@ export function notate(notes, { bpm, offset, beatsPerBar = 4 }) {
     });
   }
   return res;
+}
+
+// 아무 음도 울리지 않는 박(시작하는 음도, 이어지는 음도 없는 박)을 마디·박 번호로 돌려준다
+export function restBeats(notes, { bpm, offset, beatsPerBar = 4 }) {
+  const beat = 60 / bpm, out = [];
+  if (!notes.length) return out;
+  const first = Math.floor((Math.min(...notes.map(n => n.t)) - offset) / beat + 1e-6);
+  const last = Math.floor((Math.max(...notes.map(n => n.te)) - offset) / beat - 1e-6);
+  const b0 = Math.floor(first / beatsPerBar) * beatsPerBar, b1 = (Math.floor(last / beatsPerBar) + 1) * beatsPerBar;
+  for (let b = b0; b < b1; b++) {
+    const s = offset + b * beat, e = s + beat;
+    if (!notes.some(n => n.t < e - 1e-6 && n.te > s + beat * 0.25)) out.push({ bar: Math.floor(b / beatsPerBar), beatInBar: b % beatsPerBar, t: s });
+  }
+  return out;
 }

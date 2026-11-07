@@ -39,3 +39,13 @@ test('리듬 표기: 16분은 빔 2개, 8분은 1개, 여섯잇단은 tuplet 6',
   const rs = [...notate(six, { bpm, offset }).values()];
   assert.ok(rs.every(x => x.tuplet === 6 && x.beams === 2));
 });
+
+test('음이 두 개뿐인 박은 잇단음표보다 단순한 쪼개기를 고른다', () => {
+  assert.notEqual(bestDivision([0, 0.17], 0, beat), 6);
+});
+
+test('아무 음도 울리지 않는 박을 쉼표 자리로 찾는다', async () => {
+  const { restBeats } = await import('../src/rhythm.js');
+  const rs = restBeats([N(0, 0.9), N(2, 2.5)], { bpm, offset, beatsPerBar: 4 });
+  assert.deepEqual(rs.map(r => r.beatInBar), [1, 3]);
+});

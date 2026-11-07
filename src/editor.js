@@ -62,7 +62,7 @@ export class Editor {
   setString(s) {
     // 그 줄로 칠 수 없는 음은 건너뛰고 알려 준다
     const bad = s ? store.selected().filter(n => !candidates(n.midi, undefined, store.P.maxFret).some(c => c.string === s)) : [];
-    this.#each(n => { if (!bad.includes(n)) n.lockString = s || null; },
+    this.#each(n => { if (!bad.includes(n)) { n.lockString = s || null; n.lockUser = !!s; } },
       !s ? '줄 자동 배치' : bad.length ? `${s}번 줄로 고정 (그 줄로 칠 수 없는 ${bad.length}음은 그대로)` : `${s}번 줄로 고정`);
   }
   // 줄을 한 칸씩 옮긴다. dir -1 = 가는 줄 쪽(1번), +1 = 굵은 줄 쪽(6번)
@@ -72,7 +72,7 @@ export class Editor {
     store.edit(() => sel.forEach(n => {
       const cur = store.tab.get(n.id)?.string, cs = candidates(n.midi, undefined, store.P.maxFret).map(c => c.string).sort((a, b) => a - b);
       const next = dir < 0 ? cs.filter(s => s < cur).at(-1) : cs.find(s => s > cur);
-      if (next) { n.lockString = next; n.src = 'user'; moved++; }
+      if (next) { n.lockString = next; n.lockUser = true; n.src = 'user'; moved++; }
     }));
     const n = store.primary(), t = n && store.tab.get(n.id);
     this.notify(moved ? (sel.length === 1 ? `${t.string}번 줄 ${t.fret}프렛` : `${moved}음 줄 옮김`) : '더 옮길 줄이 없습니다');
@@ -84,7 +84,7 @@ export class Editor {
     let count = 0;
     store.edit(() => store.notes.forEach(n => {
       const st = want.get(n.midi);
-      if (st && candidates(n.midi, undefined, store.P.maxFret).some(c => c.string === st)) { n.lockString = st; count++; }
+      if (st && candidates(n.midi, undefined, store.P.maxFret).some(c => c.string === st)) { n.lockString = st; n.lockUser = true; count++; }
     }));
     this.notify(`같은 음 ${count}개를 ${[...want.values()].join('·')}번 줄로 맞췄습니다`);
   }
@@ -210,7 +210,7 @@ export class Editor {
       if (n?.ghost) { // 흐린 후보 숫자를 누르면 그 음만 그 줄로 (⇧ 누르면 같은 음 전부)
         const src = store.get(n.id);
         if (e.shiftKey) this.setStringSamePitch(n.string, [src]);
-        else { store.edit(() => { src.lockString = n.string; }); this.tr.audition(src); }
+        else { store.edit(() => { src.lockString = n.string; src.lockUser = true; }); this.tr.audition(src); }
         return;
       }
       if (!n) { store.clearSel(); return; }
@@ -219,7 +219,7 @@ export class Editor {
       const move = ev => {
         const [, yy] = pos(ev, tabC), s = Math.max(1, Math.min(6, n.string + Math.round((yy - y0) / TAB_GAP)));
         const cur = store.tab.get(n.id)?.string;
-        if (s !== cur && candidates(src.midi, undefined, store.P.maxFret).some(c => c.string === s)) { store.edit(() => { src.lockString = s; }); }
+        if (s !== cur && candidates(src.midi, undefined, store.P.maxFret).some(c => c.string === s)) { store.edit(() => { src.lockString = s; src.lockUser = true; }); }
       };
       const up = () => { removeEventListener('mousemove', move); removeEventListener('mouseup', up); };
       addEventListener('mousemove', move); addEventListener('mouseup', up);

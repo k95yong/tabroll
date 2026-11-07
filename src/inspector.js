@@ -11,7 +11,7 @@ export class Inspector {
     el.addEventListener('change', e => this.#apply(e.target));
     el.addEventListener('click', e => {
       const st = e.target.closest('[data-str]');
-      if (st) { const n = store.primary(); if (n) { store.edit(() => { n.lockString = +st.dataset.str; n.src = 'user'; }); this.tr.audition(n); } return; }
+      if (st) { const n = store.primary(); if (n) { store.edit(() => { n.lockString = +st.dataset.str; n.lockUser = true; n.src = 'user'; }); this.tr.audition(n); } return; }
       const b = e.target.closest('[data-act]'); if (b) this.#act(b.dataset.act);
     });
   }
@@ -65,7 +65,7 @@ export class Inspector {
     const v = el.value;
     store.edit(() => {
       if (f === 'midi') n.midi = +v;
-      else if (f === 'lockString') n.lockString = v ? +v : null;
+      else if (f === 'lockString') { n.lockString = v ? +v : null; n.lockUser = !!v; }
       else if (f === 'tech') { n.tech = v; if (v === 'b' && !n.bend) n.bend = 2; }
       else if (f === 'bend') n.bend = +v;
       else if (f === 't') { const len = n.te - n.t; n.t = Math.max(0, +v); n.te = n.t + len; }
@@ -83,7 +83,7 @@ export class Inspector {
       fixleg: () => {
         const n = store.primary(), prev = n && store.prevNote(n); if (!prev) return;
         const ps = store.tab.get(prev.id)?.string;
-        if (candidates(n.midi, undefined, store.P.maxFret).some(c => c.string === ps)) store.edit(() => { n.lockString = ps; });
+        if (candidates(n.midi, undefined, store.P.maxFret).some(c => c.string === ps)) store.edit(() => { n.lockString = ps; n.lockUser = true; });
         else { const s = store.tab.get(n.id)?.string; if (candidates(prev.midi, undefined, store.P.maxFret).some(c => c.string === s)) store.edit(() => { prev.lockString = s; }); }
       },
       same: () => ed.setStringSamePitch(), sup: () => ed.cycleString(-1), sdown: () => ed.cycleString(1),
