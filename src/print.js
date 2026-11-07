@@ -15,22 +15,28 @@ export function printHtml(p, tabbed, { autoPrint = true } = {}) {
   const barOf = n => rhythm.get(n.id).bar;
   const first = placed.length ? Math.max(0, barOf(placed[0])) : 0, last = placed.length ? barOf(placed.at(-1)) : 0;
 
-  // 마디마다 박 폭 정하기
+  // 마디마다 박 폭과 박 안 음 자리 정하기.
+  // 음은 박 안 시간 비율대로 놓되, 앞 음과 너무 붙으면(같은 줄은 숫자 폭, 다른 줄은 기둥 간격) 뒤로 민다.
+  // 박 폭은 그렇게 민 결과에 맞춘다. 시간 비율만으로 폭을 잡으면 아주 가까운 두 음 때문에 박 하나가 과하게 넓어진다.
+  const wdOf = n => (n.tech === 'x' ? 1 : String(n.fret).length) * 5.6;
+  const tailOf = n => (n.tech === 'b' || n.tech === 'r' ? 13 : 0);
+  const offset = new Map();
   const bars = [];
   for (let b = first; b <= last; b++) {
     const notes = placed.filter(n => barOf(n) === b);
     const beats = Array.from({ length: bpb }, (_, q) => {
-      const inBeat = notes.filter(n => rhythm.get(n.id).beatInBar === q);
-      const bends = inBeat.filter(n => n.tech === 'b' || n.tech === 'r').length; // 화살표 자리
-      // 박 안에서 가장 가까운 두 음이 같은 줄이면 숫자 폭만큼, 다른 줄이어도 기둥이 붙지 않을 만큼 벌어지게 폭을 잡는다
-      const ps = inBeat.map(n => ({ pos: rhythm.get(n.id).pos, n })).sort((a, b) => a.pos - b.pos);
-      let need = 0;
-      for (let i = 1; i < ps.length; i++) {
-        const dp = Math.max(0.02, ps[i].pos - ps[i - 1].pos), same = ps[i].n.string === ps[i - 1].n.string;
-        const gap = (same ? 6 + String(ps[i - 1].n.fret).length * 5.6 : 8) + (ps[i - 1].n.tech === 'b' ? 12 : 0);
-        need = Math.max(need, gap / dp + 16);
+      const inBeat = notes.filter(n => rhythm.get(n.id).beatInBar === q).sort((a, c) => a.t - c.t);
+      const base = Math.max(MIN_BEAT, inBeat.length * PER_NOTE * 0.8 + 8);
+      let prev = null, end = 0;
+      for (const n of inBeat) {
+        let off = 4 + rhythm.get(n.id).pos * (base - 16);
+        if (prev) {
+          const po = offset.get(prev.id), same = prev.string === n.string;
+          off = Math.max(off, po + (same ? wdOf(prev) + 8 : 11) + tailOf(prev));
+        }
+        offset.set(n.id, off); prev = n; end = off + wdOf(n) + tailOf(n) + 8;
       }
-      return Math.max(MIN_BEAT, inBeat.length * PER_NOTE + bends * 12 + 8, Math.min(need, 260));
+      return Math.max(base, end);
     });
     bars.push({ b, notes, beats, natural: beats.reduce((a, c) => a + c, 0) + 10 });
   }
@@ -43,12 +49,15 @@ export function printHtml(p, tabbed, { autoPrint = true } = {}) {
   }
   if (cur.length) systems.push(cur);
 
-  const sysSvg = sys => {
+  const sysSvg = (sys, si) => {
     const parts = [], bottom = TOP + 5 * GAP, stemTop = bottom + 8, stemBot = bottom + 30;
-    const scale = avail / sys.reduce((a, c) => a + c.natural, 0);
+    // 마지막 줄은 마디가 적어도 억지로 늘리지 않는다 (오른쪽을 비워 둔다)
+    let scale = avail / sys.reduce((a, c) => a + c.natural, 0);
+    if (si === systems.length - 1) scale = Math.min(scale, 1.25);
+    const lineEnd = L + 16 + sys.reduce((a, c) => a + c.natural, 0) * scale;
     for (let s = 1; s <= 6; s++) {
       const y = TOP + (s - 1) * GAP;
-      parts.push(`<line x1="${L}" y1="${y}" x2="${R}" y2="${y}" stroke="#555" stroke-width=".6"/>`);
+      parts.push(`<line x1="${L}" y1="${y}" x2="${lineEnd}" y2="${y}" stroke="#555" stroke-width=".6"/>`);
       parts.push(`<text x="${L - 9}" y="${y + 3}" font-size="8" fill="#888" text-anchor="middle">${STRING_NAMES[s]}</text>`);
     }
     ['T', 'A', 'B'].forEach((c, i) => parts.push(`<text x="${L + 4}" y="${TOP + 19 + i * 17}" font-size="11" font-weight="700">${c}</text>`));
@@ -61,9 +70,8 @@ export function printHtml(p, tabbed, { autoPrint = true } = {}) {
       bar.beats.forEach(w => { beatX.push([bx, w * scale]); bx += w * scale; });
       const pos = new Map(), lastOn = {}, barEnd = x + bar.natural * scale - 4;
       for (const n of [...bar.notes].sort((a, b) => a.t - b.t)) {
-        const r = rhythm.get(n.id), [b0, bw] = beatX[r.beatInBar], wd = String(n.fret).length * 5.6;
-        const tail = n.tech === 'b' || n.tech === 'r' ? 13 : 0;
-        let px = Math.max(b0 + 4 + r.pos * (bw - 16), (lastOn[n.string] ?? -1e9) + 4); // 같은 줄 앞 숫자와 겹치면 민다
+        const r = rhythm.get(n.id), [b0] = beatX[r.beatInBar], wd = wdOf(n), tail = tailOf(n);
+        let px = Math.max(b0 + offset.get(n.id) * scale, (lastOn[n.string] ?? -1e9) + 4); // 같은 줄 앞 숫자와 겹치면 민다
         if (px + wd + tail > barEnd) px = Math.max((lastOn[n.string] ?? -1e9) + 2, barEnd - wd - tail); // 마디선을 넘지 않게
         lastOn[n.string] = px + wd + tail;
         pos.set(n.id, px); allPos.set(n.id, px);
@@ -138,7 +146,7 @@ export function printHtml(p, tabbed, { autoPrint = true } = {}) {
 h1{font-size:20px;margin:0 0 2px}.meta{font-size:11px;color:#555;margin-bottom:6px}svg{display:block;break-inside:avoid;margin-bottom:2px}
 .legend{font-size:10px;color:#777;margin-top:8px}</style></head><body>
 <h1>${esc(p.title)}</h1><div class="meta">♩=${p.bpm} · ${bpb}/4 · 표준 튜닝 · TabRoll</div>
-${systems.map(sysSvg).join('\n')}
+${systems.map((sys, i) => sysSvg(sys, i)).join('\n')}
 <div class="legend">h 해머링 · p 풀링 (이음줄) · ↗ 벤딩 (½ · full · 1½ = 밀어 올리는 폭) · ↘ 릴리즈 · / 슬라이드 · 물결 비브라토 · x 뮤트 · 3·6 셋잇단·여섯잇단 · 점선 기둥은 2분음표 이상</div>
 ${autoPrint ? "<script>addEventListener('load',()=>setTimeout(()=>print(),300))</script>" : ''}</body></html>`;
 }
