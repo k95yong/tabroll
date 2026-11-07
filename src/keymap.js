@@ -36,6 +36,7 @@ export function buildKeymap(a) {
     ['편집', ['Mod+D'], '바로 뒤에 복제', () => a.ed.duplicate()],
     ['편집', ['Delete', 'Backspace'], '삭제', () => a.ed.remove()],
     ['편집', ['Q', 'Shift+Q'], '칸에 맞추기 (선택 / 보이는 음 전부)', null],
+    ['편집', ['T'], '박자 정리: 박마다 맞는 칸(16분·6연음·32분…)에 붙이고 겹침·빈틈 정리 (선택 없으면 전체)', () => a.ed.tidy()],
     ['편집', ['Enter'], '선택한 음 듣기', () => a.hearSel()],
     ['편집', ['Mod+Z', 'Mod+Shift+Z'], '되돌리기 / 다시하기', null],
     ['TAB', ['Alt+1'], '줄 고정 (⌥1~⌥6), ⌥0 자동 — TAB 숫자를 위아래로 끌어도 됨', null],

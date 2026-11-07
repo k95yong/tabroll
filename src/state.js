@@ -16,6 +16,7 @@ export function normalizeNote(n, id) {
     id, t: +n.t, te: Math.max(+n.t + 0.01, +(n.te ?? n.t + 0.2)), midi: Math.round(n.midi), vel: n.vel ?? 96,
     tech: TECHS.includes(n.tech) ? n.tech : '', bend: n.bend ?? (n.tech === 'b' ? 2 : 0),
     lockString: n.lockString >= 1 && n.lockString <= 6 ? n.lockString : null, src: n.src || 'import',
+    ...(n.div ? { div: n.div } : {}), // 박자 정리에서 정한 그 박의 쪼개기
   };
 }
 

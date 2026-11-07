@@ -84,6 +84,7 @@ $('#exJson').onclick = () => io.save(true);
 $('#exMidi').onclick = () => io.exportMidi();
 $('#exAscii').onclick = () => io.exportAscii();
 $('#exPrint').onclick = () => io.print();
+$('#tidy').onclick = () => ed.tidy();
 $('#undo').onclick = () => store.undo();
 $('#redo').onclick = () => store.redo();
 $('#help').onclick = () => app.help(true);
@@ -144,6 +145,7 @@ addEventListener('beforeunload', () => io.autosave());
 
 // ---------- 시작 ----------
 (async function boot() {
+  io.backupAutosave();
   const q = new URLSearchParams(location.search), src = q.get('project'), auto = io.restore();
   try {
     // 같은 프로젝트를 다시 열면 자동 저장본을 이어서 쓴다

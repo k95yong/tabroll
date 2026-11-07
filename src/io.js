@@ -61,6 +61,16 @@ export class IO {
 
   autosave() { try { localStorage.setItem(AUTOSAVE, JSON.stringify(store.toJSON())); } catch { /* 용량 초과 등은 무시 */ } }
   restore() { try { return JSON.parse(localStorage.getItem(AUTOSAVE) || 'null'); } catch { return null; } }
+  // 시작할 때 자동 저장본을 따로 떠 둔다(최근 5개). 다른 파일을 열어 덮어써도 되살릴 수 있게.
+  backupAutosave() {
+    try {
+      const cur = localStorage.getItem(AUTOSAVE); if (!cur) return;
+      const keys = Object.keys(localStorage).filter(k => k.startsWith('tabroll:backup:')).sort();
+      if (keys.length && localStorage.getItem(keys.at(-1)) === cur) return;
+      localStorage.setItem(`tabroll:backup:${Date.now()}`, cur);
+      keys.slice(0, Math.max(0, keys.length - 4)).forEach(k => localStorage.removeItem(k));
+    } catch { /* 용량 부족 등 */ }
+  }
 
   get baseName() { return (store.P.title || 'tabroll').replace(/[\\/:*?"<>|]/g, '_'); }
   download(name, data, type) {
@@ -68,9 +78,20 @@ export class IO {
     a.href = URL.createObjectURL(new Blob([data], { type })); a.download = name; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   }
+  // 로컬 서버(tools/serve.mjs --dir)에서 열어 온 프로젝트는 같은 파일에 바로 덮어쓴다
+  get serverPath() {
+    const s = store.P._source;
+    return s && s.startsWith('/files/') && /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? s : null;
+  }
   async save(saveAs = false) {
     const data = JSON.stringify(store.toJSON(), null, 1);
     try {
+      if (!saveAs && this.serverPath) {
+        const r = await fetch(this.serverPath, { method: 'PUT', body: data, headers: { 'Content-Type': 'application/json' } });
+        if (!r.ok) throw new Error(await r.text());
+        store.dirty = false; store.emit('saved');
+        return this.notify(`저장했습니다 → ${decodeURIComponent(this.serverPath.split('/').pop())}`);
+      }
       if (window.showSaveFilePicker) {
         if (!this.handle || saveAs) this.handle = await showSaveFilePicker({ suggestedName: `${this.baseName}.tabroll.json`, types: [{ description: 'TabRoll 프로젝트', accept: { 'application/json': ['.json'] } }] });
         const w = await this.handle.createWritable(); await w.write(data); await w.close();

@@ -2,9 +2,15 @@
 // 데모 프로젝트를 열어 마우스·키보드 편집, 묶음 선택, 반복 구간, 패널, 내보내기를 확인한다.
 import { spawn } from 'node:child_process';
 import { chromium } from 'playwright';
+import { mkdtempSync, copyFileSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 const port = 5199;
-const srv = spawn(process.execPath, ['tools/serve.mjs', String(port)], { stdio: 'ignore' });
+// 작업 폴더 흉내: 데모를 임시 폴더에 복사해 /files/ 로 연다 (저장이 그 파일로 돌아오는지 본다)
+const work = mkdtempSync(join(tmpdir(), 'tabroll-'));
+copyFileSync('examples/demo.tabroll.json', join(work, 'demo.json'));
+const srv = spawn(process.execPath, ['tools/serve.mjs', String(port), '--dir', work], { stdio: 'ignore' });
 await new Promise(r => setTimeout(r, 500));
 const browser = await chromium.launch({ headless: true, executablePath: process.env.CHROME || undefined });
 let failed = false;
@@ -99,6 +105,20 @@ try {
   const m2 = await page.evaluate(() => tabroll.store.get(2).midi);
   await page.reload(); await page.waitForFunction(() => tabroll.store.notes.length > 0);
   check(await page.evaluate(() => tabroll.store.notes.find(n => Math.abs(n.t - tabroll.store.P.notes[1].t) < 1e-9).midi) === m2, '새로고침해도 자동 저장본을 이어서 연다');
+
+  // 박자 정리 → ⌘S 로 작업 폴더 파일에 저장
+  const p2 = await browser.newPage({ viewport: { width: 1500, height: 950 } });
+  p2.on('pageerror', e => errs.push(e.message));
+  await p2.goto(`http://localhost:${port}/?project=/files/demo.json`);
+  await p2.waitForFunction(() => tabroll.store.notes.length > 0);
+  await p2.evaluate(() => { const n = tabroll.store.notes[2]; tabroll.store.edit(() => { n.t += 0.03; n.te += 0.03; }); });
+  await p2.keyboard.press('t');
+  const off = await p2.evaluate(() => { const { store } = tabroll, beat = 60 / store.P.bpm; return Math.max(...store.notes.map(n => { const x = (n.t - store.P.offset) / (beat / 4); return Math.abs(x - Math.round(x)); })); });
+  check(off < 1e-3, '박자 정리(T)로 흔들린 음이 칸에 붙음', String(off));
+  await p2.keyboard.press('Meta+s'); await p2.waitForTimeout(400);
+  const saved = JSON.parse(readFileSync(join(work, 'demo.json'), 'utf8'));
+  check(saved.saved && saved.notes.length === 10, '⌘S 로 작업 폴더 파일에 바로 저장');
+  await p2.close();
 
   if (process.argv[2]) await page.screenshot({ path: process.argv[2] });
   check(!errs.length, '페이지 오류 없음', errs.join(' | '));

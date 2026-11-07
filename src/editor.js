@@ -1,6 +1,7 @@
 // 음 편집 명령과 마우스 조작. 명령은 선택한 음 전체에 적용된다.
 import { store, TECH_LABEL } from './state.js';
 import { candidates } from './tab.js';
+import { tidy } from './rhythm.js';
 import { RULER, TOP, TAB_GAP } from './view.js';
 
 export class Editor {
@@ -27,6 +28,23 @@ export class Editor {
       store.edit(() => store.notes.filter(n => n.t >= this.view.s && n.t <= this.view.e).forEach(q));
       this.notify('보이는 음을 칸에 맞췄습니다');
     } else this.#each(q, '칸에 맞췄습니다');
+  }
+  // 박자 정리: 선택한 음(없으면 전체)을 박마다 맞는 칸에 붙이고 겹침·빈틈을 정리한다
+  tidy() {
+    const scope = store.sel.size ? store.selected() : store.notes;
+    if (!scope.length) return;
+    const out = tidy(scope, store.P), keep = new Map(out.map(n => [n.id, n])), ids = new Set(scope.map(n => n.id));
+    let moved = 0;
+    store.edit(() => {
+      store.P.notes = store.notes.filter(n => !ids.has(n.id) || keep.has(n.id));
+      for (const n of store.notes) {
+        const o = keep.get(n.id); if (!o) continue;
+        if (Math.abs(o.t - n.t) > 1e-4 || Math.abs(o.te - n.te) > 1e-4) moved++;
+        Object.assign(n, { t: o.t, te: o.te, div: o.div });
+      }
+    });
+    for (const id of [...store.sel]) if (!store.get(id)) store.sel.delete(id);
+    this.notify(`박자 정리: ${scope.length}음 중 ${moved}음 손봄${scope.length - out.length ? `, 겹친 ${scope.length - out.length}음 합침` : ''} (⌘Z로 되돌리기)`, 4000);
   }
   remove() {
     const sel = store.selected(); if (!sel.length) return;
