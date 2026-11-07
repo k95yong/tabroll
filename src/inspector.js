@@ -26,18 +26,18 @@ export class Inspector {
     this.el.innerHTML = `
       <h4>선택한 음</h4>
       <div class="big">${noteName(n.midi)} <span>${tab.string ? `${tab.string}번 줄 ${tab.fret}프렛` : '칠 수 없는 음'}</span></div>
-      <label>음높이 <select data-f="midi">${pitches.join('')}</select></label>
-      <label>줄 <select data-f="lockString">${opt('', `자동 (${tab.string ? STRING_NAMES[tab.string] + ' ' + tab.fret : '-'})`, n.lockString || '')}${strings.map(c => opt(c.string, `${c.string}번 ${STRING_NAMES[c.string]} · ${c.fret}프렛`, n.lockString || '')).join('')}</select></label>
+      <label title="음높이 (↑↓ 반음, ⇧↑↓ 옥타브). 바꾸면 그 음이 들립니다">음높이 <select data-f="midi">${pitches.join('')}</select></label>
+      <label title="몇 번 줄로 칠지. 자동 = 손 이동이 가장 적게. 아래 버튼이나 TAB 점선 숫자를 눌러도 됩니다">줄 <select data-f="lockString">${opt('', `자동 (${tab.string ? STRING_NAMES[tab.string] + ' ' + tab.fret : '-'})`, n.lockString || '')}${strings.map(c => opt(c.string, `${c.string}번 ${STRING_NAMES[c.string]} · ${c.fret}프렛`, n.lockString || '')).join('')}</select></label>
       <div class="strings">${strings.map(c => `<button data-str="${c.string}" class="${c.string === tab.string ? 'on' : ''}" title="${c.string}번 줄 ${c.fret}프렛">${c.string}<small>${STRING_NAMES[c.string]}·${c.fret}</small></button>`).join('')}</div>
       <button data-act="same" title="곡 전체에서 ${noteName(n.midi)} 음을 지금 줄(${tab.string}번)로 맞춤 (G)">같은 ${noteName(n.midi)} 전부 ${tab.string}번 줄로</button>
-      <label>주법 <select data-f="tech">${opt('', '없음', n.tech)}${TECHS.map(t => opt(t, TECH_LABEL[t], n.tech)).join('')}</select></label>
-      ${n.tech === 'b' ? `<label>벤딩 <select data-f="bend">${[1, 2, 3, 4].map(b => opt(b, { 1: '½음', 2: '1음 (full)', 3: '1½음', 4: '2음' }[b], n.bend || 2)).join('')}</select></label>` : ''}
+      <label title="H 해머링 · P 풀링 · B 벤딩 · R 릴리즈 · S 슬라이드 · V 비브라토 · X 뮤트 · 0 지우기">주법 <select data-f="tech">${opt('', '없음', n.tech)}${TECHS.map(t => opt(t, TECH_LABEL[t], n.tech)).join('')}</select></label>
+      ${n.tech === 'b' ? `<label title="몇 음 밀어 올리는지 (⇧B 로 바꾸기). TAB에는 출발 프렛 b 도착 프렛으로 나옵니다">벤딩 <select data-f="bend">${[1, 2, 3, 4].map(b => opt(b, { 1: '½음', 2: '1음 (full)', 3: '1½음', 4: '2음' }[b], n.bend || 2)).join('')}</select></label>` : ''}
       ${['h', 'p', 's'].includes(n.tech) && !legatoOk(tab, store.prevNote(n) && store.tab.get(store.prevNote(n).id)) ? `<p class="warn">⚠ ${TECH_LABEL[n.tech]}: 앞 음과 같은 줄${n.tech === 'h' ? '에서 높은 프렛' : n.tech === 'p' ? '에서 낮은 프렛' : ''}이어야 자연스럽습니다</p><button data-act="fixleg">앞 음과 같은 줄로 맞추기</button>` : ''}
-      <label>시작(초) <input data-f="t" type="number" step="0.005" value="${n.t.toFixed(3)}"></label>
-      <label>길이(초) <input data-f="len" type="number" step="0.005" min="0.01" value="${(n.te - n.t).toFixed(3)}"></label>
-      <label>세기 <input data-f="vel" type="range" min="20" max="127" value="${n.vel}"></label>
+      <label title="음이 시작하는 시간(초). ←→ 키는 칸 단위로 옮깁니다">시작(초) <input data-f="t" type="number" step="0.005" value="${n.t.toFixed(3)}"></label>
+      <label title="음 길이(초). ⇧←→ 키는 칸 단위로 늘이고 줄입니다">길이(초) <input data-f="len" type="number" step="0.005" min="0.01" value="${(n.te - n.t).toFixed(3)}"></label>
+      <label title="피킹 세기. 악보 소리 크기에만 영향이 있습니다">세기 <input data-f="vel" type="range" min="20" max="127" value="${n.vel}"></label>
       <p class="dim">${pos.bar}마디 ${pos.beat.toFixed(2)}박 · ${{ user: '직접 고친 음', rec: '건반 녹음', import: '불러온 음', midi: 'MIDI' }[n.src] || ''}</p>
-      <div class="acts"><button data-act="hear">▶ 듣기</button><button data-act="dup">복제</button><button data-act="del" class="danger">삭제</button></div>`;
+      <div class="acts"><button data-act="hear" title="이 음 듣기 (Enter)">▶ 듣기</button><button data-act="dup" title="바로 뒤에 복제 (⌘D)">복제</button><button data-act="del" class="danger" title="삭제 (Delete)">삭제</button></div>`;
   }
   #summary() {
     const P = store.P, ns = store.notes, unplayable = [...store.tab.values()].filter(n => n.fret < 0).length;
@@ -53,11 +53,11 @@ export class Inspector {
       <div class="acts wrap">
         <button data-act="up">반음 ↑</button><button data-act="down">반음 ↓</button>
         <button data-act="oup">옥타브 ↑</button><button data-act="odown">옥타브 ↓</button>
-        <button data-act="quant">칸에 맞추기</button><button data-act="auto">줄 자동</button>
+        <button data-act="quant" title="고른 칸에 시작·끝 맞추기 (Q)">칸에 맞추기</button><button data-act="auto" title="줄 고정 풀고 자동 배치 (⌥0)">줄 자동</button>
         <button data-act="sup" title="⌥↑">줄 ↑ (가는 줄)</button><button data-act="sdown" title="⌥↓">줄 ↓ (굵은 줄)</button>
         <button data-act="same">같은 음 전부 같은 줄로</button>
-        <button data-act="notech">주법 지우기</button><button data-act="copy">복사</button>
-        <button data-act="loop">이 구간 반복</button><button data-act="del" class="danger">삭제</button>
+        <button data-act="notech" title="주법 지우기 (0)">주법 지우기</button><button data-act="copy" title="복사 (⌘C). 재생 위치에 ⌘V로 붙여넣기">복사</button>
+        <button data-act="loop" title="고른 음 구간만 반복 재생">이 구간 반복</button><button data-act="del" class="danger">삭제</button>
       </div>`;
   }
   #apply(el) {

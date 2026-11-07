@@ -113,6 +113,16 @@ try {
   const print = await page.evaluate(async () => { const { printHtml } = await import('/src/print.js'); const { store } = tabroll; return printHtml(store.P, [...store.tab.values()]); });
   check(/<path d="M[^"]+Q/.test(print) && />H<\/text>/.test(print), '인쇄 TAB에 해머링 호와 H 표시');
 
+  // 풍선 도움말: 막대 위·눈금자 위·버튼 위
+  const nb = await geo(2);
+  await page.mouse.move(box.x + nb.x, box.y + nb.y); await page.waitForTimeout(500);
+  check(await page.locator('#tip.show').textContent().then(t => t.includes('음 막대')).catch(() => false), '막대 위에 마우스를 올리면 사용법 풍선');
+  await page.mouse.move(box.x + 300, box.y + 8); await page.waitForTimeout(500);
+  check((await page.locator('#tip').textContent()).includes('눈금자'), '눈금자 위 풍선');
+  await page.hover('#tidy'); await page.waitForTimeout(450);
+  check((await page.locator('#tip').textContent()).includes('박자 정리'), '버튼 위 풍선');
+  await page.mouse.move(5, 5);
+
   // 재생, 단축키 화면
   await page.keyboard.press('Space'); await page.waitForTimeout(400); await page.keyboard.press('Space');
   check(await page.evaluate(() => tabroll.tr.cursor > 0), '재생 후 위치가 앞으로 감');

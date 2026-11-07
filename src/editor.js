@@ -2,7 +2,7 @@
 import { store, TECH_LABEL } from './state.js';
 import { candidates } from './tab.js';
 import { tidy } from './rhythm.js';
-import { RULER, TOP, TAB_GAP } from './view.js';
+import { RULER, TOP, TAB_GAP, KEY_W } from './view.js';
 
 export class Editor {
   constructor(view, transport, notify) {
@@ -132,6 +132,7 @@ export class Editor {
     roll.addEventListener('mousedown', e => {
       if (e.button !== 0) return;
       const [x, y] = pos(e, roll);
+      if (x < KEY_W && y >= TOP) { this.tr.audition({ midi: v.M(y) }); return; } // 왼쪽 건반: 그 음 듣기
       if (y < RULER) { this.drag = { kind: 'ruler', x0: x, t0: Math.max(0, v.T(x)) }; return; }
       if (y < TOP) { this.tr.seek(Math.max(0, v.T(x))); return; }
       const h = v.hit(x, y);

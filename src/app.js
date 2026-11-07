@@ -8,6 +8,8 @@ import { IO } from './io.js';
 import { MidiInput } from './midiin.js';
 import { Inspector } from './inspector.js';
 import { buildKeymap, extraHandler, comboOf, helpHtml } from './keymap.js';
+import { Tips, ZONE_TIPS } from './tips.js';
+import { KEY_W, RULER, TOP } from './view.js';
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -34,6 +36,20 @@ const midi = new MidiInput(tr, synth, {
 });
 const inspector = new Inspector($('#inspector'), ed, tr);
 ed.attach();
+
+// ---------- 풍선 도움말 ----------
+const tips = new Tips();
+$('#tipsOn').checked = tips.on;
+$('#tipsOn').onchange = e => tips.setEnabled(e.target.checked);
+const at = (e, c) => { const r = c.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+$('#roll').addEventListener('mousemove', e => {
+  if (ed.drag) return tips.hide();
+  const [x, y] = at(e, $('#roll')), h = y >= TOP && x >= KEY_W ? view.hit(x, y) : null;
+  tips.show(ZONE_TIPS[x < KEY_W ? 'keys' : y < RULER ? 'ruler' : y < TOP ? 'wave' : h ? (h.part === 'mid' ? 'note' : 'edge') : 'empty'], e);
+});
+$('#tab').addEventListener('mousemove', e => { const [x, y] = at(e, $('#tab')), h = view.hitTab(x, y); tips.show(ZONE_TIPS[h?.ghost ? 'ghost' : h ? 'tabNum' : 'tabEmpty'], e); });
+$('#overview').addEventListener('mousemove', e => tips.show(ZONE_TIPS.overview, e));
+for (const id of ['#roll', '#tab', '#overview']) $(id).addEventListener('mouseleave', () => tips.hide());
 
 // ---------- 앱 동작 (단축키·버튼 공용) ----------
 const app = {
