@@ -83,7 +83,7 @@ try {
 
   // TAB 숫자 끌어서 줄 바꾸기
   const tb = await page.locator('#tab').boundingBox();
-  const tn = await page.evaluate(() => { const { store, view } = tabroll; const n = [...store.tab.values()].find(n => n.t > view.s && n.string <= 3 && n.fret >= 5); return { id: n.id, x: view.X(n.t) + 5, y: 22 + (n.string - 1) * 20, s: n.string }; });
+  const tn = await page.evaluate(() => { const { store, view } = tabroll; const n = [...store.tab.values()].find(n => n.t > view.s && n.string <= 3 && n.fret >= 5); return { id: n.id, x: view.X(n.t) + 5, y: 32 + (n.string - 1) * 20, s: n.string }; });
   await page.mouse.move(tb.x + tn.x, tb.y + tn.y); await page.mouse.down();
   await page.mouse.move(tb.x + tn.x, tb.y + tn.y + 20, { steps: 4 }); await page.mouse.up();
   check(await page.evaluate(id => tabroll.store.tab.get(id).string, tn.id) === tn.s + 1, 'TAB 숫자 끌어서 줄 바꾸기');
@@ -91,7 +91,7 @@ try {
   // 흐린 후보 숫자 클릭으로 줄 바꾸기, ⌥↑↓, 같은 음 전부 같은 줄
   await page.evaluate(() => tabroll.store.select(3));
   await page.waitForTimeout(100);
-  const gh = await page.evaluate(() => { tabroll.view.render(); const g = tabroll.view.ghosts[0]; return g && { x: (g.x0 + g.x1) / 2, y: 22 + (g.string - 1) * 20, s: g.string }; });
+  const gh = await page.evaluate(() => { tabroll.view.render(); const g = tabroll.view.ghosts[0]; return g && { x: (g.x0 + g.x1) / 2, y: 32 + (g.string - 1) * 20, s: g.string }; });
   await page.mouse.click(tb.x + gh.x, tb.y + gh.y);
   check(await page.evaluate(() => tabroll.store.tab.get(3).string) === gh.s, 'TAB의 흐린 후보 숫자를 눌러 줄 바꾸기');
   const s0 = await page.evaluate(() => tabroll.store.tab.get(3).string);
@@ -111,7 +111,11 @@ try {
   const prevOk = await page.evaluate(() => { const { store } = tabroll, n = store.primary(), p = store.prevNote(n); return store.tab.get(n.id).string === store.tab.get(p.id).string; });
   check(prevOk ? warn1 === 0 : warn1 === 1, '해머링 줄 검사 표시', `${prevOk} ${warn1}`);
   const print = await page.evaluate(async () => { const { printHtml } = await import('/src/print.js'); const { store } = tabroll; return printHtml(store.P, [...store.tab.values()]); });
-  check(/<path d="M[^"]+Q/.test(print) && />H<\/text>/.test(print), '인쇄 TAB에 해머링 호와 H 표시');
+  check(/<path d="M[^"]+Q/.test(print) && /italic[^>]*>h<\/text>/.test(print), '인쇄 TAB에 해머링 이음줄과 h 표시');
+  await page.evaluate(() => { const { store } = tabroll, n = store.byTime().find(x => !x.tech); store.select(n.id); });
+  await page.keyboard.press('b');
+  const pb = await page.evaluate(async () => { const { printHtml } = await import('/src/print.js'); const { store } = tabroll; return printHtml(store.P, [...store.tab.values()]); });
+  check(/>full<\/text>/.test(pb) && !/\d+b\d+/.test(pb.replace(/<[^>]+>/g, ' ')), '벤딩은 곡선 화살표 + full 표시 (12b14 글자 없음)');
 
   // 풍선 도움말: 막대 위·눈금자 위·버튼 위
   const nb = await geo(2);

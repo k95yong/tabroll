@@ -3,9 +3,9 @@
 // - TAB 아래에 박자 꼬리(기둥·빔)와 셋잇단·여섯잇단 표시를 그린다.
 import { STRING_NAMES } from './tab.js';
 import { notate } from './rhythm.js';
+import * as mk from './marks.js';
 
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const TECH = { r: 'R', v: '~' }; // 해머링·풀링·슬라이드는 호·사선으로 따로 그린다
 
 const W = 760, L = 34, R = 752, GAP = 14, TOP = 30, MIN_BEAT = 46, PER_NOTE = 19;
 
@@ -20,8 +20,9 @@ export function printHtml(p, tabbed) {
   for (let b = first; b <= last; b++) {
     const notes = placed.filter(n => barOf(n) === b);
     const beats = Array.from({ length: bpb }, (_, q) => {
-      const k = notes.filter(n => rhythm.get(n.id).beatInBar === q).length;
-      return Math.max(MIN_BEAT, k * PER_NOTE + 8);
+      const inBeat = notes.filter(n => rhythm.get(n.id).beatInBar === q);
+      const bends = inBeat.filter(n => n.tech === 'b' || n.tech === 'r').length; // 화살표 자리
+      return Math.max(MIN_BEAT, inBeat.length * PER_NOTE + bends * 12 + 8);
     });
     bars.push({ b, notes, beats, natural: beats.reduce((a, c) => a + c, 0) + 10 });
   }
@@ -44,25 +45,25 @@ export function printHtml(p, tabbed) {
     }
     ['T', 'A', 'B'].forEach((c, i) => parts.push(`<text x="${L + 4}" y="${TOP + 19 + i * 17}" font-size="11" font-weight="700">${c}</text>`));
     let x = L + 16;
-    const allPos = new Map();
+    const allPos = new Map(), widths = new Map();
     for (const bar of sys) {
       parts.push(`<line x1="${x}" y1="${TOP}" x2="${x}" y2="${bottom}" stroke="#222"/>`);
       parts.push(`<text x="${x + 2}" y="${TOP - 14}" font-size="10" font-weight="700" fill="#1d4ed8">${bar.b + 1}</text>`);
-      const beatX = []; let bx = x + 8 * scale;
+      const beatX = []; let bx = x + 6 + 8 * scale; // 마디선에서 띄운다
       bar.beats.forEach(w => { beatX.push([bx, w * scale]); bx += w * scale; });
       const pos = new Map();
       for (const n of bar.notes) {
         const r = rhythm.get(n.id), [b0, bw] = beatX[r.beatInBar];
-        pos.set(n.id, b0 + 4 + r.pos * (bw - 10)); allPos.set(n.id, pos.get(n.id));
+        pos.set(n.id, b0 + 4 + r.pos * (bw - 16)); allPos.set(n.id, pos.get(n.id));
       }
       // 숫자와 주법
       for (const n of bar.notes) {
         const nx = pos.get(n.id), y = TOP + (n.string - 1) * GAP;
-        const label = n.tech === 'x' ? 'x' : n.tech === 'b' ? `${n.fret}b${n.fret + (n.bend || 2)}` : String(n.fret);
+        const label = n.tech === 'x' ? 'x' : String(n.fret);
         const w = 4 + label.length * 5.6;
         parts.push(`<rect x="${nx - 2}" y="${y - 6}" width="${w}" height="12" fill="#fff"/>`);
         parts.push(`<text x="${nx}" y="${y + 4}" font-size="10.5" font-weight="600">${esc(label)}</text>`);
-        if (TECH[n.tech]) parts.push(`<text x="${nx}" y="${TOP - 4}" font-size="8" fill="#b45309">${TECH[n.tech]}</text>`);
+        widths.set(n.id, label.length * 5.6);
       }
       // 리듬: 박마다 기둥과 빔
       const groups = new Map();
@@ -94,17 +95,22 @@ export function printHtml(p, tabbed) {
       x += bar.natural * scale;
     }
     parts.push(`<line x1="${x}" y1="${TOP}" x2="${x}" y2="${bottom}" stroke="#222" stroke-width="1.3"/>`);
-    // 해머링·풀링: 앞 음에서 이어지는 호와 H/P, 슬라이드: 사선
+    // 주법 기호는 숫자를 다 그린 뒤 맨 위에 (흰 테두리를 깔아 다른 숫자·선에 묻히지 않게)
+    const path = (d, w = 1) => `<path d="${d}" fill="none" stroke="#fff" stroke-width="${w + 2.5}" stroke-linecap="round"/><path d="${d}" fill="none" stroke="#222" stroke-width="${w}" stroke-linecap="round"/>`;
+    const text = (t, x, y, extra = '') => `<text x="${x}" y="${y}" font-size="8" text-anchor="middle" stroke="#fff" stroke-width="2.5" paint-order="stroke" ${extra}>${esc(t)}</text>`;
     for (const n of sys.flatMap(b => b.notes)) {
-      if (!['h', 'p', 's'].includes(n.tech)) continue;
-      const i = placed.indexOf(n), prev = placed[i - 1], x1 = allPos.get(n.id) + 3, y = TOP + (n.string - 1) * GAP;
-      const x0 = prev && allPos.has(prev.id) ? allPos.get(prev.id) + 3 : x1 - 16;
-      if (n.tech === 's') {
-        const up = !prev || n.fret >= prev.fret;
-        parts.push(`<line x1="${Math.max(x0 + 7, x1 - 13)}" y1="${y + (up ? 3 : -3)}" x2="${x1 - 5}" y2="${y + (up ? -3 : 3)}" stroke="#333" stroke-width="1"/>`);
-      } else {
-        parts.push(`<path d="M${x0} ${y - 7} Q${(x0 + x1) / 2} ${y - 15} ${x1} ${y - 7}" fill="none" stroke="#333" stroke-width=".8"/>`);
-        parts.push(`<text x="${(x0 + x1) / 2}" y="${y - 13}" font-size="7.5" font-weight="700" text-anchor="middle">${n.tech.toUpperCase()}</text>`);
+      if (!n.tech || n.tech === 'x') continue;
+      const nx = allPos.get(n.id), right = nx + widths.get(n.id), y = TOP + (n.string - 1) * GAP;
+      if (n.tech === 'b' || n.tech === 'r') {
+        const m = n.tech === 'b' ? mk.bend(right, y, 0.85) : mk.release(right, y, 0.85);
+        parts.push(path(m.curve, 0.9), path(m.head, 0.9));
+        if (n.tech === 'b') parts.push(text(mk.BEND_LABEL[n.bend || 2] || `${(n.bend || 2) / 2}`, m.tip[0], m.tip[1] - 2.5, 'font-weight="700"'));
+      } else if (n.tech === 'v') parts.push(path(mk.vibrato(nx - 1, y - 10, Math.max(13, widths.get(n.id) + 4), 0.8), 0.8));
+      else {
+        const i = placed.indexOf(n), prev = placed[i - 1], have = prev && allPos.has(prev.id);
+        const x1 = nx + widths.get(n.id) / 2, x0 = have ? allPos.get(prev.id) + widths.get(prev.id) / 2 : x1 - 16;
+        if (n.tech === 's') parts.push(path(mk.slide(have ? allPos.get(prev.id) + widths.get(prev.id) : nx - 14, nx, y, !prev || n.fret >= prev.fret, 0.85), 0.9));
+        else { const sl = mk.slur(x0, x1, y, 0.85); parts.push(path(sl.path, 0.8), text(n.tech, sl.label[0], sl.label[1], 'font-style="italic" font-weight="700"')); }
       }
     }
     return `<svg viewBox="0 0 ${W} ${bottom + 48}" width="100%">${parts.join('')}</svg>`;
@@ -116,6 +122,6 @@ h1{font-size:20px;margin:0 0 2px}.meta{font-size:11px;color:#555;margin-bottom:6
 .legend{font-size:10px;color:#777;margin-top:8px}</style></head><body>
 <h1>${esc(p.title)}</h1><div class="meta">♩=${p.bpm} · ${bpb}/4 · 표준 튜닝 · TabRoll</div>
 ${systems.map(sysSvg).join('\n')}
-<div class="legend">H 해머링 · P 풀링 (앞 음에서 이어지는 호) · 7b9 벤딩(7프렛을 9프렛 음까지) · R 릴리즈 · / 슬라이드 · ~ 비브라토 · x 뮤트 · 3·6 셋잇단·여섯잇단 · 점선 기둥은 2분음표 이상</div>
+<div class="legend">h 해머링 · p 풀링 (이음줄) · ↗ 벤딩 (½ · full · 1½ = 밀어 올리는 폭) · ↘ 릴리즈 · / 슬라이드 · 물결 비브라토 · x 뮤트 · 3·6 셋잇단·여섯잇단 · 점선 기둥은 2분음표 이상</div>
 <script>addEventListener('load',()=>setTimeout(()=>print(),300))</script></body></html>`;
 }

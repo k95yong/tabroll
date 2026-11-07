@@ -2,11 +2,11 @@
 import { store, noteName } from './state.js';
 import { STRING_NAMES, candidates } from './tab.js';
 import { peaksIn } from './waveform.js';
+import * as mk from './marks.js';
 
 export const KEY_W = 48, RULER = 20, WAVE = 36, TOP = RULER + WAVE;
-export const TAB_TOP = 22, TAB_GAP = 20, TAB_PAD = 5;
+export const TAB_TOP = 32, TAB_GAP = 20, TAB_PAD = 5;
 const BLACK = new Set([1, 3, 6, 8, 10]);
-const TECH_SHORT = { r: 'r', v: '~' }; // h·p·슬라이드는 호·사선으로 따로 그린다
 
 // 해머링은 같은 줄에서 높은 프렛으로, 풀링은 낮은 프렛으로, 슬라이드는 같은 줄에서 이어져야 자연스럽다
 export function legatoOk(n, prev) {
@@ -177,7 +177,7 @@ export class View {
   }
 
   drawTab() {
-    const [w, h] = fit(this.tabC, 150), g = this.tabC.getContext('2d');
+    const [w, h] = fit(this.tabC, 160), g = this.tabC.getContext('2d');
     g.fillStyle = '#f7f7f5'; g.fillRect(0, 0, w, h);
     for (let s = 1; s <= 6; s++) {
       const y = TAB_TOP + (s - 1) * TAB_GAP;
@@ -186,26 +186,31 @@ export class View {
     }
     g.font = '700 11px -apple-system'; g.fillStyle = '#333'; g.fillText('TAB', 6, TAB_TOP - 8);
     for (let b = store.barAt(this.s); b <= store.barAt(this.e); b++) { const x = this.X(store.barStart(b)); if (x >= KEY_W) { g.fillStyle = '#333'; g.fillRect(x, TAB_TOP, 1.5, TAB_GAP * 5); } }
-    // 숫자는 음 시작에서 TAB_PAD 만큼 띄워 마디선·박선에 붙지 않게 한다.
-    // 빠른 구간에서 숫자가 겹치면 같은 줄의 앞 숫자 바로 뒤로 민다.
+    // 1) 자리 잡기: 숫자는 음 시작에서 TAB_PAD 만큼 띄워 마디선·박선에 붙지 않게 하고,
+    //    같은 줄 앞 숫자(벤딩 화살표 포함)와 겹치면 뒤로 밀고, 다음 마디선을 넘으면 앞으로 당긴다.
     const lastX = {};
     this.tabSpots = [];
-    for (const n of [...store.tab.values()].sort((a, b) => a.t - b.t)) {
-      if (n.t < this.s || n.t > this.e) continue;
-      const on = store.sel.has(n.id), y = TAB_TOP + (n.string - 1) * TAB_GAP;
-      const x = Math.max(this.X(n.t) + TAB_PAD, (lastX[n.string] ?? -1e9) + 3);
+    const ns = [...store.tab.values()].filter(n => n.t >= this.s && n.t <= this.e).sort((a, b) => a.t - b.t);
+    for (const n of ns) {
       const label = n.fret < 0 ? '?' : n.tech === 'x' ? 'x' : String(n.fret);
+      g.font = '700 13px -apple-system';
+      const tw = g.measureText(label).width, extra = n.tech === 'b' || n.tech === 'r' ? 15 : 0;
+      let x = Math.max(this.X(n.t) + TAB_PAD, (lastX[n.string] ?? -1e9) + 3);
+      const nextBar = this.X(store.barStart(store.barAt(n.t) + 1));
+      if (x + tw + extra > nextBar - 7) x = Math.max((lastX[n.string] ?? -1e9) + 3, this.X(n.t) + 1, nextBar - 7 - tw - extra);
+      lastX[n.string] = x + tw + extra;
+      this.tabSpots.push({ id: n.id, string: n.string, x0: x - 3, x1: x + tw + 3, x, tw, label, n });
+    }
+    // 2) 숫자
+    for (const sp of this.tabSpots) {
+      const { n, x, tw, label } = sp, on = store.sel.has(n.id), y = TAB_TOP + (n.string - 1) * TAB_GAP;
       g.font = `${on ? 800 : 600} 13px -apple-system`;
-      const tw = g.measureText(label).width;
       g.fillStyle = on ? '#fce7f3' : '#f7f7f5'; g.fillRect(x - 2, y - 8, tw + 4, 16);
       g.fillStyle = on ? '#db2777' : n.fret < 0 ? '#dc2626' : n.lockString ? '#1d4ed8' : '#111';
       g.fillText(label, x, y + 5);
-      lastX[n.string] = x + tw;
-      this.tabSpots.push({ id: n.id, string: n.string, x0: x - 3, x1: x + tw + 3 });
-      const mark = n.tech === 'b' ? `b${n.bend || 2}` : TECH_SHORT[n.tech];
-      if (mark) { g.font = '10px -apple-system'; g.fillStyle = '#b45309'; g.fillText(mark, x + tw + 2, y - 3); }
     }
-    this.#legatoMarks(g);
+    // 3) 주법 기호는 숫자를 다 그린 뒤 맨 위에 그려서 다른 음 숫자에 가리지 않게 한다
+    this.#techMarks(g);
     // 선택한 음은 다른 줄로 칠 수 있는 자리를 흐리게 보여 준다. 클릭하면 그 줄로 바뀐다.
     this.ghosts = [];
     const sel = store.selected();
@@ -224,24 +229,35 @@ export class View {
     const px = this.X(this.tr.clock()); if (px >= KEY_W) { g.fillStyle = '#16a34a'; g.fillRect(px - 1, 0, 2, h); }
   }
 
-  // 해머링·풀링은 앞 음과 이어지는 호(弧)와 H/P, 슬라이드는 두 숫자 사이 사선으로 그린다.
-  // 앞 음과 줄이 다르거나 방향이 안 맞으면(해머링인데 내려감 등) 빨갛게 표시한다.
-  #legatoMarks(g) {
+  // 벤딩·릴리즈는 곡선 화살표, 해머링·풀링은 이음줄 + h/p, 슬라이드는 사선, 비브라토는 물결.
+  // 해머링·풀링·슬라이드가 앞 음과 줄이 다르거나 방향이 안 맞으면 빨갛게 표시한다.
+  #techMarks(g) {
     const spot = new Map(this.tabSpots.map(o => [o.id, o]));
-    for (const n of store.tab.values()) {
-      if (!['h', 'p', 's'].includes(n.tech) || !spot.has(n.id)) continue;
-      const prev = store.prevNote(store.get(n.id)), pt = prev && store.tab.get(prev.id), ps = prev && spot.get(prev.id);
-      const cur = spot.get(n.id), y = TAB_TOP + (n.string - 1) * TAB_GAP;
-      const ok = legatoOk(n, pt);
-      g.strokeStyle = g.fillStyle = ok ? '#b45309' : '#dc2626'; g.lineWidth = 1.2;
-      const x0 = ps ? (ps.x0 + ps.x1) / 2 : cur.x0 - 14, x1 = (cur.x0 + cur.x1) / 2;
-      if (n.tech === 's') {
-        const up = !pt || n.fret >= pt.fret;
-        g.beginPath(); g.moveTo(Math.max(x0 + 6, x1 - 14), y + (up ? 4 : -4)); g.lineTo(x1 - 5, y + (up ? -4 : 4)); g.stroke();
-      } else {
-        g.beginPath(); g.moveTo(x0, y - 8); g.quadraticCurveTo((x0 + x1) / 2, y - 16, x1, y - 8); g.stroke();
-        g.font = '700 9px -apple-system'; g.fillText(n.tech.toUpperCase(), (x0 + x1) / 2 - 3, y - 15);
+    const halo = (text, x, y) => { g.lineWidth = 3; g.strokeStyle = '#f7f7f5'; g.strokeText(text, x, y); g.fillText(text, x, y); };
+    const stroke = (d, w = 1.3) => { g.lineWidth = w; g.stroke(new Path2D(d)); };
+    for (const sp of this.tabSpots) {
+      const n = sp.n, y = TAB_TOP + (n.string - 1) * TAB_GAP, right = sp.x + sp.tw;
+      g.textAlign = 'center';
+      if (n.tech === 'b' || n.tech === 'r') {
+        const m = n.tech === 'b' ? mk.bend(right, y) : mk.release(right, y);
+        g.strokeStyle = '#f7f7f5'; stroke(m.curve, 4); stroke(m.head, 4);
+        g.strokeStyle = g.fillStyle = '#b45309'; stroke(m.curve); stroke(m.head);
+        if (n.tech === 'b') { g.font = '700 9px -apple-system'; halo(mk.BEND_LABEL[n.bend || 2] || `${(n.bend || 2) / 2}`, m.tip[0], m.tip[1] - 3); }
+      } else if (n.tech === 'v') {
+        g.strokeStyle = '#f7f7f5'; stroke(mk.vibrato(sp.x - 1, y - 11, Math.max(14, sp.tw + 4)), 3.5);
+        g.strokeStyle = '#b45309'; stroke(mk.vibrato(sp.x - 1, y - 11, Math.max(14, sp.tw + 4)), 1.2);
+      } else if (['h', 'p', 's'].includes(n.tech)) {
+        const prev = store.prevNote(store.get(n.id)), pt = prev && store.tab.get(prev.id), ps = prev && spot.get(prev.id);
+        const ok = legatoOk(n, pt), x1 = sp.x + sp.tw / 2, x0 = ps ? ps.x + ps.tw / 2 : sp.x - 14;
+        g.strokeStyle = g.fillStyle = ok ? '#b45309' : '#dc2626';
+        if (n.tech === 's') stroke(mk.slide(ps ? ps.x + ps.tw : sp.x - 14, sp.x, y, !pt || n.fret >= pt.fret), 1.4);
+        else {
+          const sl = mk.slur(x0, x1, y);
+          g.strokeStyle = '#f7f7f5'; stroke(sl.path, 3.5); g.strokeStyle = ok ? '#b45309' : '#dc2626'; stroke(sl.path, 1.2);
+          g.font = 'italic 700 10px -apple-system'; halo(n.tech, sl.label[0], sl.label[1]);
+        }
       }
+      g.textAlign = 'left';
     }
   }
 
