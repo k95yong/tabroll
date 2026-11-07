@@ -87,9 +87,12 @@ export class Transport {
     if (this.notesVol > 0) for (const n of store.notes) {
       if (n.t < t - 0.01 || n.t >= horizon || this.scheduled.has(n.id)) continue;
       this.scheduled.add(n.id);
+      const legato = n.tech === 'h' || n.tech === 'p' || n.tech === 's';
+      const prev = n.tech === 's' ? store.prevNote(n) : null;
       this.voices.push(s.note(n.midi, {
         when: s.now + (n.t - t) / this.rate, until: s.now + (n.te - t) / this.rate, vel: n.vel,
         bendTo: n.tech === 'b' ? n.midi + (n.bend || 2) : null, vibrato: n.tech === 'v',
+        legato, glideFrom: prev ? prev.midi : null,
       }));
     }
     if (this.metro) {

@@ -54,10 +54,18 @@ export function assignFrets(notes, opts = {}) {
     const gap = Math.max(0, sorted[i].t - sorted[i - 1].te);
     const prevHs = [...new Set(layer.map(s => s.H))];
     const next = cand[i].flatMap(c => states(c, prevHs));
-    const nc = [], bk = [];
+    const nc = [], bk = [], tech = sorted[i].tech;
+    // 해머링·풀링·슬라이드는 앞 음과 같은 줄이어야 칠 수 있다
+    const legato = (ps, st) => {
+      if (tech !== 'h' && tech !== 'p' && tech !== 's') return 0;
+      if (ps.c.string !== st.c.string) return 3;
+      if (tech === 'h' && st.c.fret <= ps.c.fret) return 1.5;
+      if (tech === 'p' && st.c.fret >= ps.c.fret) return 1.5;
+      return 0;
+    };
     next.forEach(st => {
       let best = Infinity, arg = 0;
-      layer.forEach((ps, k) => { const v = cost[k] + move(ps, st, gap); if (v < best) { best = v; arg = k; } });
+      layer.forEach((ps, k) => { const v = cost[k] + move(ps, st, gap) + legato(ps, st); if (v < best) { best = v; arg = k; } });
       nc.push(best + local(st)); bk.push(arg);
     });
     backs.push({ layer, bk });

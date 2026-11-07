@@ -53,6 +53,8 @@ class Store {
   get notes() { return this.P.notes; }
   byTime() { return [...this.P.notes].sort((a, b) => a.t - b.t || a.midi - b.midi); }
   get(id) { return this.P.notes.find(n => n.id === id); }
+  // 바로 앞 음 (해머링·풀링·슬라이드가 어느 음에서 이어지는지)
+  prevNote(n) { let best = null; for (const m of this.P.notes) if (m !== n && m.t < n.t - 1e-6 && (!best || m.t > best.t)) best = m; return best; }
   selected() { return this.P.notes.filter(n => this.sel.has(n.id)); }
   primary() { const s = this.selected(); return s.length ? s.sort((a, b) => a.t - b.t)[0] : null; }
   makeNote(fields) { return normalizeNote({ src: 'user', ...fields }, this.nextId++); }

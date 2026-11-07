@@ -1,6 +1,7 @@
 // 오른쪽 패널: 선택한 음의 높이·줄·주법·시간을 숫자로 고친다.
 import { store, noteName, TECH_LABEL, TECHS } from './state.js';
 import { candidates, STRING_NAMES } from './tab.js';
+import { legatoOk } from './view.js';
 
 const opt = (v, label, cur) => `<option value="${v}"${String(v) === String(cur) ? ' selected' : ''}>${label}</option>`;
 
@@ -31,6 +32,7 @@ export class Inspector {
       <button data-act="same" title="곡 전체에서 ${noteName(n.midi)} 음을 지금 줄(${tab.string}번)로 맞춤 (G)">같은 ${noteName(n.midi)} 전부 ${tab.string}번 줄로</button>
       <label>주법 <select data-f="tech">${opt('', '없음', n.tech)}${TECHS.map(t => opt(t, TECH_LABEL[t], n.tech)).join('')}</select></label>
       ${n.tech === 'b' ? `<label>벤딩 <select data-f="bend">${[1, 2, 3, 4].map(b => opt(b, { 1: '½음', 2: '1음 (full)', 3: '1½음', 4: '2음' }[b], n.bend || 2)).join('')}</select></label>` : ''}
+      ${['h', 'p', 's'].includes(n.tech) && !legatoOk(tab, store.prevNote(n) && store.tab.get(store.prevNote(n).id)) ? `<p class="warn">⚠ ${TECH_LABEL[n.tech]}: 앞 음과 같은 줄${n.tech === 'h' ? '에서 높은 프렛' : n.tech === 'p' ? '에서 낮은 프렛' : ''}이어야 자연스럽습니다</p><button data-act="fixleg">앞 음과 같은 줄로 맞추기</button>` : ''}
       <label>시작(초) <input data-f="t" type="number" step="0.005" value="${n.t.toFixed(3)}"></label>
       <label>길이(초) <input data-f="len" type="number" step="0.005" min="0.01" value="${(n.te - n.t).toFixed(3)}"></label>
       <label>세기 <input data-f="vel" type="range" min="20" max="127" value="${n.vel}"></label>
@@ -78,6 +80,12 @@ export class Inspector {
     ({
       hear: () => store.selected().forEach(n => this.tr.audition(n)),
       dup: () => ed.duplicate(), del: () => ed.remove(), copy: () => ed.copy(),
+      fixleg: () => {
+        const n = store.primary(), prev = n && store.prevNote(n); if (!prev) return;
+        const ps = store.tab.get(prev.id)?.string;
+        if (candidates(n.midi, undefined, store.P.maxFret).some(c => c.string === ps)) store.edit(() => { n.lockString = ps; });
+        else { const s = store.tab.get(n.id)?.string; if (candidates(prev.midi, undefined, store.P.maxFret).some(c => c.string === s)) store.edit(() => { prev.lockString = s; }); }
+      },
       same: () => ed.setStringSamePitch(), sup: () => ed.cycleString(-1), sdown: () => ed.cycleString(1),
       up: () => ed.transpose(1), down: () => ed.transpose(-1), oup: () => ed.transpose(12), odown: () => ed.transpose(-12),
       quant: () => ed.quantize('sel'), auto: () => ed.setString(0), notech: () => ed.setTech(''),

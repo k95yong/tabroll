@@ -5,7 +5,7 @@ import { STRING_NAMES } from './tab.js';
 import { notate } from './rhythm.js';
 
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const TECH = { h: 'H', p: 'P', b: 'B', r: 'R', s: 'sl.', v: '~' };
+const TECH = { r: 'R', v: '~' }; // 해머링·풀링·슬라이드는 호·사선으로 따로 그린다
 
 const W = 760, L = 34, R = 752, GAP = 14, TOP = 30, MIN_BEAT = 46, PER_NOTE = 19;
 
@@ -44,6 +44,7 @@ export function printHtml(p, tabbed) {
     }
     ['T', 'A', 'B'].forEach((c, i) => parts.push(`<text x="${L + 4}" y="${TOP + 19 + i * 17}" font-size="11" font-weight="700">${c}</text>`));
     let x = L + 16;
+    const allPos = new Map();
     for (const bar of sys) {
       parts.push(`<line x1="${x}" y1="${TOP}" x2="${x}" y2="${bottom}" stroke="#222"/>`);
       parts.push(`<text x="${x + 2}" y="${TOP - 14}" font-size="10" font-weight="700" fill="#1d4ed8">${bar.b + 1}</text>`);
@@ -52,7 +53,7 @@ export function printHtml(p, tabbed) {
       const pos = new Map();
       for (const n of bar.notes) {
         const r = rhythm.get(n.id), [b0, bw] = beatX[r.beatInBar];
-        pos.set(n.id, b0 + 4 + r.pos * (bw - 10));
+        pos.set(n.id, b0 + 4 + r.pos * (bw - 10)); allPos.set(n.id, pos.get(n.id));
       }
       // 숫자와 주법
       for (const n of bar.notes) {
@@ -93,6 +94,19 @@ export function printHtml(p, tabbed) {
       x += bar.natural * scale;
     }
     parts.push(`<line x1="${x}" y1="${TOP}" x2="${x}" y2="${bottom}" stroke="#222" stroke-width="1.3"/>`);
+    // 해머링·풀링: 앞 음에서 이어지는 호와 H/P, 슬라이드: 사선
+    for (const n of sys.flatMap(b => b.notes)) {
+      if (!['h', 'p', 's'].includes(n.tech)) continue;
+      const i = placed.indexOf(n), prev = placed[i - 1], x1 = allPos.get(n.id) + 3, y = TOP + (n.string - 1) * GAP;
+      const x0 = prev && allPos.has(prev.id) ? allPos.get(prev.id) + 3 : x1 - 16;
+      if (n.tech === 's') {
+        const up = !prev || n.fret >= prev.fret;
+        parts.push(`<line x1="${Math.max(x0 + 7, x1 - 13)}" y1="${y + (up ? 3 : -3)}" x2="${x1 - 5}" y2="${y + (up ? -3 : 3)}" stroke="#333" stroke-width="1"/>`);
+      } else {
+        parts.push(`<path d="M${x0} ${y - 7} Q${(x0 + x1) / 2} ${y - 15} ${x1} ${y - 7}" fill="none" stroke="#333" stroke-width=".8"/>`);
+        parts.push(`<text x="${(x0 + x1) / 2}" y="${y - 13}" font-size="7.5" font-weight="700" text-anchor="middle">${n.tech.toUpperCase()}</text>`);
+      }
+    }
     return `<svg viewBox="0 0 ${W} ${bottom + 48}" width="100%">${parts.join('')}</svg>`;
   };
 
@@ -102,6 +116,6 @@ h1{font-size:20px;margin:0 0 2px}.meta{font-size:11px;color:#555;margin-bottom:6
 .legend{font-size:10px;color:#777;margin-top:8px}</style></head><body>
 <h1>${esc(p.title)}</h1><div class="meta">♩=${p.bpm} · ${bpb}/4 · 표준 튜닝 · TabRoll</div>
 ${systems.map(sysSvg).join('\n')}
-<div class="legend">H 해머링 · P 풀링 · 7b9 벤딩(7프렛을 9프렛 음까지) · R 릴리즈 · sl. 슬라이드 · ~ 비브라토 · x 뮤트 · 3·6 셋잇단·여섯잇단 · 점선 기둥은 2분음표 이상</div>
+<div class="legend">H 해머링 · P 풀링 (앞 음에서 이어지는 호) · 7b9 벤딩(7프렛을 9프렛 음까지) · R 릴리즈 · / 슬라이드 · ~ 비브라토 · x 뮤트 · 3·6 셋잇단·여섯잇단 · 점선 기둥은 2분음표 이상</div>
 <script>addEventListener('load',()=>setTimeout(()=>print(),300))</script></body></html>`;
 }

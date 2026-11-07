@@ -6,7 +6,15 @@ import { peaksIn } from './waveform.js';
 export const KEY_W = 48, RULER = 20, WAVE = 36, TOP = RULER + WAVE;
 export const TAB_TOP = 22, TAB_GAP = 20, TAB_PAD = 5;
 const BLACK = new Set([1, 3, 6, 8, 10]);
-const TECH_SHORT = { h: 'h', p: 'p', r: 'r', s: '/', v: '~' };
+const TECH_SHORT = { r: 'r', v: '~' }; // h·p·슬라이드는 호·사선으로 따로 그린다
+
+// 해머링은 같은 줄에서 높은 프렛으로, 풀링은 낮은 프렛으로, 슬라이드는 같은 줄에서 이어져야 자연스럽다
+export function legatoOk(n, prev) {
+  if (!prev || prev.string !== n.string || prev.fret < 0 || n.fret < 0) return false;
+  if (n.tech === 'h') return n.fret > prev.fret;
+  if (n.tech === 'p') return n.fret < prev.fret;
+  return n.fret !== prev.fret;
+}
 
 function fit(c, h) {
   const r = c.getBoundingClientRect(), dpr = devicePixelRatio || 1, H = h ?? r.height;
@@ -197,6 +205,7 @@ export class View {
       const mark = n.tech === 'b' ? `b${n.bend || 2}` : TECH_SHORT[n.tech];
       if (mark) { g.font = '10px -apple-system'; g.fillStyle = '#b45309'; g.fillText(mark, x + tw + 2, y - 3); }
     }
+    this.#legatoMarks(g);
     // 선택한 음은 다른 줄로 칠 수 있는 자리를 흐리게 보여 준다. 클릭하면 그 줄로 바뀐다.
     this.ghosts = [];
     const sel = store.selected();
@@ -213,6 +222,27 @@ export class View {
       }
     }
     const px = this.X(this.tr.clock()); if (px >= KEY_W) { g.fillStyle = '#16a34a'; g.fillRect(px - 1, 0, 2, h); }
+  }
+
+  // 해머링·풀링은 앞 음과 이어지는 호(弧)와 H/P, 슬라이드는 두 숫자 사이 사선으로 그린다.
+  // 앞 음과 줄이 다르거나 방향이 안 맞으면(해머링인데 내려감 등) 빨갛게 표시한다.
+  #legatoMarks(g) {
+    const spot = new Map(this.tabSpots.map(o => [o.id, o]));
+    for (const n of store.tab.values()) {
+      if (!['h', 'p', 's'].includes(n.tech) || !spot.has(n.id)) continue;
+      const prev = store.prevNote(store.get(n.id)), pt = prev && store.tab.get(prev.id), ps = prev && spot.get(prev.id);
+      const cur = spot.get(n.id), y = TAB_TOP + (n.string - 1) * TAB_GAP;
+      const ok = legatoOk(n, pt);
+      g.strokeStyle = g.fillStyle = ok ? '#b45309' : '#dc2626'; g.lineWidth = 1.2;
+      const x0 = ps ? (ps.x0 + ps.x1) / 2 : cur.x0 - 14, x1 = (cur.x0 + cur.x1) / 2;
+      if (n.tech === 's') {
+        const up = !pt || n.fret >= pt.fret;
+        g.beginPath(); g.moveTo(Math.max(x0 + 6, x1 - 14), y + (up ? 4 : -4)); g.lineTo(x1 - 5, y + (up ? -4 : 4)); g.stroke();
+      } else {
+        g.beginPath(); g.moveTo(x0, y - 8); g.quadraticCurveTo((x0 + x1) / 2, y - 16, x1, y - 8); g.stroke();
+        g.font = '700 9px -apple-system'; g.fillText(n.tech.toUpperCase(), (x0 + x1) / 2 - 3, y - 15);
+      }
+    }
   }
 
   drawOverview() {

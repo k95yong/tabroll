@@ -20,17 +20,21 @@ export class Synth {
   set volume(v) { this.out.gain.value = v; }
 
   // when/until 은 AudioContext 시간. until 이 없으면 stop()으로 끈다.
-  note(midi, { when = this.now, until = null, vel = 96, bendTo = null, vibrato = false } = {}) {
+  // legato: 해머링·풀링·슬라이드처럼 새로 피킹하지 않은 음 (어택 없이 이어서). glideFrom: 슬라이드 출발 음
+  note(midi, { when = this.now, until = null, vel = 96, bendTo = null, vibrato = false, legato = false, glideFrom = null } = {}) {
     const ctx = this.ctx, f = 440 * 2 ** ((midi - 69) / 12);
     const o1 = ctx.createOscillator(), o2 = ctx.createOscillator(), g = ctx.createGain(), mix = ctx.createGain();
     o1.type = 'sawtooth'; o2.type = 'triangle';
-    o1.frequency.setValueAtTime(f, when); o2.frequency.setValueAtTime(f, when);
+    if (glideFrom != null) {
+      const f0 = 440 * 2 ** ((glideFrom - 69) / 12), t1 = when + Math.min(0.08, until ? (until - when) * 0.4 : 0.08);
+      for (const o of [o1, o2]) { o.frequency.setValueAtTime(f0, when); o.frequency.exponentialRampToValueAtTime(f, t1); }
+    } else { o1.frequency.setValueAtTime(f, when); o2.frequency.setValueAtTime(f, when); }
     o2.detune.value = 4;
     mix.gain.value = 0.35;
     o1.connect(mix); o2.connect(g); mix.connect(g); g.connect(this.shaper);
     const a = 0.35 * (vel / 127);
-    g.gain.setValueAtTime(0.0001, when);
-    g.gain.exponentialRampToValueAtTime(a, when + 0.006);
+    g.gain.setValueAtTime(legato ? a * 0.55 : 0.0001, when);
+    g.gain.exponentialRampToValueAtTime(legato ? a * 0.7 : a, when + (legato ? 0.02 : 0.006));
     g.gain.exponentialRampToValueAtTime(a * 0.6, when + 0.5);
     if (bendTo != null && until) {
       const f2 = 440 * 2 ** ((bendTo - 69) / 12), t2 = when + Math.min(0.12, (until - when) * 0.4);

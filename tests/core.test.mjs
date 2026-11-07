@@ -45,3 +45,12 @@ test('MIDI 파일로 썼다 읽으면 음과 시간이 유지된다', () => {
   assert.deepEqual(back.map(n => n.midi), [60, 64, 67]);
   back.forEach((n, i) => assert.ok(Math.abs(n.t - notes[i].t) < 0.005 && Math.abs(n.te - notes[i].te) < 0.005));
 });
+
+test('해머링·풀링이 붙은 음은 앞 음과 같은 줄에 배치된다', () => {
+  // A4(69) 다음 C5(72) 해머링: 2번 줄 10 → 13 이 자연스럽다
+  const out = assignFrets([N(0, 69), N(0.2, 72, { tech: 'h' }), N(0.4, 69, { tech: 'p' })]);
+  assert.equal(out[1].string, out[0].string);
+  assert.ok(out[1].fret > out[0].fret);
+  assert.equal(out[2].string, out[1].string);
+  assert.ok(out[2].fret < out[1].fret);
+});

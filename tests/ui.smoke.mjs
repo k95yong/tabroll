@@ -104,6 +104,15 @@ try {
   const pad = await page.evaluate(() => { const { view, store } = tabroll; view.render(); return view.tabSpots.every(sp => sp.x0 + 3 >= view.X(store.tab.get(sp.id).t) + 4); });
   check(pad, 'TAB 숫자가 마디선·박선에서 떨어져 그려짐');
 
+  // 해머링 표시: 같은 줄이면 경고 없음, 다른 줄로 옮기면 경고와 고치기 버튼
+  await page.evaluate(() => { const { store } = tabroll; const ns = store.byTime(); store.select(ns[2].id); });
+  await page.keyboard.press('h');
+  const warn1 = await page.locator('#inspector .warn').count();
+  const prevOk = await page.evaluate(() => { const { store } = tabroll, n = store.primary(), p = store.prevNote(n); return store.tab.get(n.id).string === store.tab.get(p.id).string; });
+  check(prevOk ? warn1 === 0 : warn1 === 1, '해머링 줄 검사 표시', `${prevOk} ${warn1}`);
+  const print = await page.evaluate(async () => { const { printHtml } = await import('/src/print.js'); const { store } = tabroll; return printHtml(store.P, [...store.tab.values()]); });
+  check(/<path d="M[^"]+Q/.test(print) && />H<\/text>/.test(print), '인쇄 TAB에 해머링 호와 H 표시');
+
   // 재생, 단축키 화면
   await page.keyboard.press('Space'); await page.waitForTimeout(400); await page.keyboard.press('Space');
   check(await page.evaluate(() => tabroll.tr.cursor > 0), '재생 후 위치가 앞으로 감');
