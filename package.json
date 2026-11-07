@@ -1,0 +1,18 @@
+{
+  "name": "tabroll",
+  "version": "0.1.0",
+  "description": "막대(피아노 롤)로 음을 맞추고 기타 TAB까지 만드는 브라우저 채보기",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "start": "node tools/serve.mjs --open",
+    "serve": "node tools/serve.mjs",
+    "test": "node --test tests/",
+    "test:ui": "node tests/ui.smoke.mjs",
+    "package": "node tools/package.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.47.0"
+  },
+  "engines": { "node": ">=18" }
+}
