@@ -59,7 +59,12 @@ export class Editor {
     this.#each(n => { n.tech = allOn ? '' : t; if (n.tech === 'b' && !n.bend) n.bend = 2; }, `주법: ${allOn || !t ? '없음' : TECH_LABEL[t]}`);
   }
   setBend(semi) { this.#each(n => { n.tech = 'b'; n.bend = semi; }, `벤딩 ${semi === 1 ? '½' : semi === 2 ? 'full' : semi / 2 + '음'}`); }
-  setString(s) { this.#each(n => { n.lockString = s || null; }, s ? `${s}번 줄로 고정` : '줄 자동 배치'); }
+  setString(s) {
+    // 그 줄로 칠 수 없는 음은 건너뛰고 알려 준다
+    const bad = s ? store.selected().filter(n => !candidates(n.midi, undefined, store.P.maxFret).some(c => c.string === s)) : [];
+    this.#each(n => { if (!bad.includes(n)) n.lockString = s || null; },
+      !s ? '줄 자동 배치' : bad.length ? `${s}번 줄로 고정 (그 줄로 칠 수 없는 ${bad.length}음은 그대로)` : `${s}번 줄로 고정`);
+  }
   copy() {
     const sel = store.selected().sort((a, b) => a.t - b.t); if (!sel.length) return;
     const t0 = sel[0].t; this.clip = sel.map(({ id, ...n }) => ({ ...n, t: n.t - t0, te: n.te - t0 }));
