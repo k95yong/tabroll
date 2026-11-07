@@ -127,6 +127,15 @@ try {
   check((await page.locator('#tip').textContent()).includes('박자 정리'), '버튼 위 풍선');
   await page.mouse.move(5, 5);
 
+  // 악보 미리보기 (⇧P): 인쇄될 TAB이 바로 뜨고, 고치면 따라 바뀜
+  await page.keyboard.press('Shift+KeyP'); await page.waitForTimeout(400);
+  const sheet1 = await page.evaluate(() => document.querySelector('#sheetFrame').srcdoc);
+  check(!(await page.locator('#sheetBox').isHidden()) && /<svg/.test(sheet1) && !/print\(\)/.test(sheet1), '악보 미리보기가 열리고 인쇄 TAB을 보여 줌');
+  await page.evaluate(() => { const { store } = tabroll, n = store.notes[0]; store.edit(() => { n.midi += 2; }); }); await page.waitForTimeout(400);
+  check(await page.evaluate(() => document.querySelector('#sheetFrame').srcdoc) !== sheet1, '고치면 악보 미리보기도 바뀜');
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => tabroll.store.undo());
+
   // 재생, 단축키 화면
   await page.keyboard.press('Space'); await page.waitForTimeout(400); await page.keyboard.press('Space');
   check(await page.evaluate(() => tabroll.tr.cursor > 0), '재생 후 위치가 앞으로 감');

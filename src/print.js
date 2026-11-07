@@ -9,7 +9,7 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;',
 
 const W = 760, L = 34, R = 752, GAP = 14, TOP = 30, MIN_BEAT = 46, PER_NOTE = 19;
 
-export function printHtml(p, tabbed) {
+export function printHtml(p, tabbed, { autoPrint = true } = {}) {
   const placed = tabbed.filter(n => n.fret >= 0 && n.string).sort((a, b) => a.t - b.t);
   const bpb = p.beatsPerBar, rhythm = notate(placed, p);
   const barOf = n => rhythm.get(n.id).bar;
@@ -22,7 +22,15 @@ export function printHtml(p, tabbed) {
     const beats = Array.from({ length: bpb }, (_, q) => {
       const inBeat = notes.filter(n => rhythm.get(n.id).beatInBar === q);
       const bends = inBeat.filter(n => n.tech === 'b' || n.tech === 'r').length; // 화살표 자리
-      return Math.max(MIN_BEAT, inBeat.length * PER_NOTE + bends * 12 + 8);
+      // 박 안에서 가장 가까운 두 음이 같은 줄이면 숫자 폭만큼, 다른 줄이어도 기둥이 붙지 않을 만큼 벌어지게 폭을 잡는다
+      const ps = inBeat.map(n => ({ pos: rhythm.get(n.id).pos, n })).sort((a, b) => a.pos - b.pos);
+      let need = 0;
+      for (let i = 1; i < ps.length; i++) {
+        const dp = Math.max(0.02, ps[i].pos - ps[i - 1].pos), same = ps[i].n.string === ps[i - 1].n.string;
+        const gap = (same ? 6 + String(ps[i - 1].n.fret).length * 5.6 : 8) + (ps[i - 1].n.tech === 'b' ? 12 : 0);
+        need = Math.max(need, gap / dp + 16);
+      }
+      return Math.max(MIN_BEAT, inBeat.length * PER_NOTE + bends * 12 + 8, Math.min(need, 260));
     });
     bars.push({ b, notes, beats, natural: beats.reduce((a, c) => a + c, 0) + 10 });
   }
@@ -51,10 +59,14 @@ export function printHtml(p, tabbed) {
       parts.push(`<text x="${x + 2}" y="${TOP - 14}" font-size="10" font-weight="700" fill="#1d4ed8">${bar.b + 1}</text>`);
       const beatX = []; let bx = x + 6 + 8 * scale; // 마디선에서 띄운다
       bar.beats.forEach(w => { beatX.push([bx, w * scale]); bx += w * scale; });
-      const pos = new Map();
-      for (const n of bar.notes) {
-        const r = rhythm.get(n.id), [b0, bw] = beatX[r.beatInBar];
-        pos.set(n.id, b0 + 4 + r.pos * (bw - 16)); allPos.set(n.id, pos.get(n.id));
+      const pos = new Map(), lastOn = {}, barEnd = x + bar.natural * scale - 4;
+      for (const n of [...bar.notes].sort((a, b) => a.t - b.t)) {
+        const r = rhythm.get(n.id), [b0, bw] = beatX[r.beatInBar], wd = String(n.fret).length * 5.6;
+        const tail = n.tech === 'b' || n.tech === 'r' ? 13 : 0;
+        let px = Math.max(b0 + 4 + r.pos * (bw - 16), (lastOn[n.string] ?? -1e9) + 4); // 같은 줄 앞 숫자와 겹치면 민다
+        if (px + wd + tail > barEnd) px = Math.max((lastOn[n.string] ?? -1e9) + 2, barEnd - wd - tail); // 마디선을 넘지 않게
+        lastOn[n.string] = px + wd + tail;
+        pos.set(n.id, px); allPos.set(n.id, px);
       }
       // 숫자와 주법
       for (const n of bar.notes) {
@@ -123,5 +135,5 @@ h1{font-size:20px;margin:0 0 2px}.meta{font-size:11px;color:#555;margin-bottom:6
 <h1>${esc(p.title)}</h1><div class="meta">♩=${p.bpm} · ${bpb}/4 · 표준 튜닝 · TabRoll</div>
 ${systems.map(sysSvg).join('\n')}
 <div class="legend">h 해머링 · p 풀링 (이음줄) · ↗ 벤딩 (½ · full · 1½ = 밀어 올리는 폭) · ↘ 릴리즈 · / 슬라이드 · 물결 비브라토 · x 뮤트 · 3·6 셋잇단·여섯잇단 · 점선 기둥은 2분음표 이상</div>
-<script>addEventListener('load',()=>setTimeout(()=>print(),300))</script></body></html>`;
+${autoPrint ? "<script>addEventListener('load',()=>setTimeout(()=>print(),300))</script>" : ''}</body></html>`;
 }

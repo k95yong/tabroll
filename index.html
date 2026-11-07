@@ -54,6 +54,7 @@
   </div>
 
   <div class="grp right">
+    <button id="sheet" title="악보 보기: 인쇄될 TAB(박자 꼬리·벤딩 화살표·이음줄 포함)을 바로 보여 줍니다. 고치면 따라 바뀝니다 (⇧P)">📄 악보 보기</button>
     <button id="undo" title="되돌리기 (⌘Z)">↶</button><button id="redo" title="다시하기 (⇧⌘Z)">↷</button>
     <button id="help" title="단축키 (?)">⌨ 단축키</button>
   </div>
@@ -93,6 +94,8 @@
     <div id="inspector"></div>
   </aside>
 </main>
+
+<div id="sheetBox" hidden><div class="sheetBar"><b>📄 악보 미리보기</b><span class="dim">고치면 바로 따라 바뀝니다 · Esc 닫기</span><button id="sheetPrint">🖨 인쇄 / PDF</button><button id="sheetClose">닫기</button></div><iframe id="sheetFrame" title="악보 미리보기"></iframe></div>
 
 <div id="helpBox" hidden>
   <div class="card">

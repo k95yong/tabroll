@@ -1,6 +1,6 @@
 {
   "name": "tabroll",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "막대(피아노 롤)로 음을 맞추고 기타 TAB까지 만드는 브라우저 채보기",
   "type": "module",
   "license": "MIT",

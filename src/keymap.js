@@ -48,6 +48,7 @@ export function buildKeymap(a) {
     ['파일', ['Mod+O'], '음원·영상 열기', () => a.io.pickMedia()],
     ['파일', ['Mod+S', 'Mod+Shift+S'], '저장 / 다른 이름으로', null],
     ['파일', ['Mod+P'], 'TAB 인쇄 / PDF', () => a.io.print()],
+    ['파일', ['Shift+P'], '악보 미리보기 (인쇄될 모양 그대로, 고치면 따라 바뀜)', () => a.toggleSheet()],
     ['도움', ['Shift+/'], '단축키 보기', () => a.help(true)],
   ];
 }

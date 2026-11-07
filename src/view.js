@@ -3,9 +3,10 @@ import { store, noteName } from './state.js';
 import { STRING_NAMES, candidates } from './tab.js';
 import { peaksIn } from './waveform.js';
 import * as mk from './marks.js';
+import { notate } from './rhythm.js';
 
 export const KEY_W = 48, RULER = 20, WAVE = 36, TOP = RULER + WAVE;
-export const TAB_TOP = 32, TAB_GAP = 20, TAB_PAD = 5;
+export const TAB_TOP = 32, TAB_GAP = 20, TAB_PAD = 5, TAB_H = 182;
 const BLACK = new Set([1, 3, 6, 8, 10]);
 
 // 해머링은 같은 줄에서 높은 프렛으로, 풀링은 낮은 프렛으로, 슬라이드는 같은 줄에서 이어져야 자연스럽다
@@ -177,7 +178,7 @@ export class View {
   }
 
   drawTab() {
-    const [w, h] = fit(this.tabC, 160), g = this.tabC.getContext('2d');
+    const [w, h] = fit(this.tabC, TAB_H), g = this.tabC.getContext('2d');
     g.fillStyle = '#f7f7f5'; g.fillRect(0, 0, w, h);
     for (let s = 1; s <= 6; s++) {
       const y = TAB_TOP + (s - 1) * TAB_GAP;
@@ -211,6 +212,8 @@ export class View {
     }
     // 3) 주법 기호는 숫자를 다 그린 뒤 맨 위에 그려서 다른 음 숫자에 가리지 않게 한다
     this.#techMarks(g);
+    // 4) 박자 꼬리: 인쇄 TAB과 같은 기둥·빔·잇단음표
+    this.#rhythm(g);
     // 선택한 음은 다른 줄로 칠 수 있는 자리를 흐리게 보여 준다. 클릭하면 그 줄로 바뀐다.
     this.ghosts = [];
     const sel = store.selected();
@@ -227,6 +230,40 @@ export class View {
       }
     }
     const px = this.X(this.tr.clock()); if (px >= KEY_W) { g.fillStyle = '#16a34a'; g.fillRect(px - 1, 0, 2, h); }
+  }
+
+  #rhythm(g) {
+    if (!this.tabSpots.length) return;
+    const r = notate(this.tabSpots.map(sp => sp.n), store.P), top = TAB_TOP + 5 * TAB_GAP + 7, bot = top + 18;
+    const groups = new Map();
+    for (const sp of this.tabSpots) { const x = r.get(sp.n.id); if (x) (groups.get(x.groupKey) || groups.set(x.groupKey, []).get(x.groupKey)).push({ sp, x }); }
+    g.strokeStyle = g.fillStyle = '#333';
+    for (const grp of groups.values()) {
+      grp.sort((a, b) => a.sp.n.t - b.sp.n.t);
+      const xs = grp.map(o => o.sp.x + o.sp.tw / 2), rs = grp.map(o => o.x);
+      grp.forEach((o, i) => {
+        const long = ['2분', '점2분', '온'].includes(rs[i].value);
+        g.lineWidth = 1; g.setLineDash(long ? [2, 2] : []);
+        g.beginPath(); g.moveTo(xs[i], top); g.lineTo(xs[i], bot); g.stroke(); g.setLineDash([]);
+        if (rs[i].dotted) { g.beginPath(); g.arc(xs[i] + 4, bot - 3, 1.4, 0, 7); g.fill(); }
+      });
+      g.lineWidth = 2.4;
+      for (let lv = 1; lv <= 3; lv++) {
+        const y = bot - (lv - 1) * 4;
+        for (let i = 0; i < grp.length; i++) {
+          if (rs[i].beams < lv) continue;
+          g.beginPath();
+          if (i + 1 < grp.length && rs[i + 1].beams >= lv) { g.moveTo(xs[i], y); g.lineTo(xs[i + 1], y); }
+          else if (!(i > 0 && rs[i - 1].beams >= lv)) { const d = i + 1 < grp.length || grp.length === 1 ? 7 : -7; g.moveTo(xs[i], y); g.lineTo(xs[i] + d, y); }
+          g.stroke();
+        }
+      }
+      if (rs[0].tuplet && grp.length > 1) {
+        const a = xs[0], b = xs.at(-1), y = bot + 7;
+        g.lineWidth = 0.8; g.beginPath(); g.moveTo(a, y - 3); g.lineTo(a, y); g.lineTo(b, y); g.lineTo(b, y - 3); g.stroke();
+        g.font = '9px -apple-system'; g.textAlign = 'center'; g.fillText(String(rs[0].tuplet), (a + b) / 2, y + 10); g.textAlign = 'left';
+      }
+    }
   }
 
   // 벤딩·릴리즈는 곡선 화살표, 해머링·풀링은 이음줄 + h/p, 슬라이드는 사선, 비브라토는 물결.

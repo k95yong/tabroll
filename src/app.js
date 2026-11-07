@@ -10,6 +10,7 @@ import { Inspector } from './inspector.js';
 import { buildKeymap, extraHandler, comboOf, helpHtml } from './keymap.js';
 import { Tips, ZONE_TIPS } from './tips.js';
 import { KEY_W, RULER, TOP } from './view.js';
+import { printHtml } from './print.js';
 
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
@@ -77,6 +78,7 @@ $('#helpBody').innerHTML = helpHtml(keymap);
 document.addEventListener('keydown', e => {
   if (e.target.matches('input, select, textarea')) { if (e.key === 'Escape' || e.key === 'Enter') e.target.blur(); return; }
   if (!$('#helpBox').hidden) { if (e.key === 'Escape' || e.key === '?') app.help(false); return; }
+  if (!$('#sheetBox').hidden && e.key === 'Escape') { app.toggleSheet(); return; }
   if (e.repeat && /^(Space|L|M|K|F|O)$/.test(comboOf(e))) return;
   const combo = comboOf(e), fn = byCombo.get(combo);
   if (fn) { e.preventDefault(); fn(); return; }
@@ -101,6 +103,14 @@ $('#exMidi').onclick = () => io.exportMidi();
 $('#exAscii').onclick = () => io.exportAscii();
 $('#exPrint').onclick = () => io.print();
 $('#tidy').onclick = () => ed.tidy();
+// 악보 미리보기: 인쇄될 TAB을 그대로 보여 주고, 고칠 때마다 다시 그린다
+let sheetT = 0;
+function refreshSheet() { if ($('#sheetBox').hidden) return; clearTimeout(sheetT); sheetT = setTimeout(() => { $('#sheetFrame').srcdoc = printHtml(store.P, [...store.tab.values()], { autoPrint: false }); }, 150); }
+app.toggleSheet = () => { $('#sheetBox').hidden = !$('#sheetBox').hidden; refreshSheet(); };
+$('#sheet').onclick = () => app.toggleSheet();
+$('#sheetClose').onclick = () => app.toggleSheet();
+$('#sheetPrint').onclick = () => io.print();
+store.on(kind => { if (kind !== 'select') refreshSheet(); });
 $('#undo').onclick = () => store.undo();
 $('#redo').onclick = () => store.redo();
 $('#help').onclick = () => app.help(true);
