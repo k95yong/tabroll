@@ -174,9 +174,14 @@ addEventListener('beforeunload', () => io.autosave());
   io.backupAutosave();
   const q = new URLSearchParams(location.search), src = q.get('project'), auto = io.restore();
   try {
-    // 같은 프로젝트를 다시 열면 자동 저장본을 이어서 쓴다
-    if (src && !(auto && auto._source === src)) await io.openUrlProject(src);
-    else if (auto) { store.load(auto); view.fitAll(); notify('자동 저장본을 이어서 엽니다'); }
+    // 같은 프로젝트를 다시 열면 자동 저장본을 이어서 쓴다. 단, 파일 쪽이 더 최근에 저장됐으면 파일을 연다.
+    let fileObj = null;
+    if (src) { try { fileObj = await (await fetch(src)).json(); } catch { /* 아래에서 처리 */ } }
+    const stamp = o => Math.max(Date.parse(o?.saved || 0) || 0, Date.parse(o?.tidied || 0) || 0);
+    const edited = Date.parse(auto?.editedAt || 0) || 0; // 자동 저장본에서 실제로 고친 시각
+    const useAuto = auto && (!src || (auto._source === src && edited && edited >= stamp(fileObj)));
+    if (useAuto) { store.load(auto); view.fitAll(); notify('자동 저장본을 이어서 엽니다'); }
+    else if (fileObj) { store.load({ ...fileObj, _source: src }); view.fitAll(); }
     if (q.get('media')) await io.openMedia(q.get('media'), { wave: q.get('wave') });
   } catch (e) { notify('시작 파일을 읽지 못했습니다: ' + e.message, 5000); }
   syncInputs(); syncSnap(); store.retab(); inspector.render(); refreshStatus();

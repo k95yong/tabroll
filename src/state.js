@@ -76,6 +76,7 @@ class Store {
   edit(fn) { this.checkpoint(); fn(); this.changed(); }
   changed(kind = 'notes') {
     this.dirty = true;
+    this.lastEdit = Date.now(); // 실제로 고친 시각 (불러오기만 한 경우는 0)
     this.retab();
     this.emit(kind);
   }
@@ -101,6 +102,7 @@ class Store {
     this.nextId = 1;
     this.P.notes = notes.filter(n => isFinite(n.t) && isFinite(n.midi)).map(n => normalizeNote(n, this.nextId++));
     this.undoStack = []; this.redoStack = []; this.sel.clear(); this.dirty = false;
+    this.lastEdit = Date.parse(base.editedAt || 0) || 0;
     this.retab();
     this.emit('load');
   }

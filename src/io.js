@@ -59,7 +59,7 @@ export class IO {
     this.view.fitAll();
   }
 
-  autosave() { try { localStorage.setItem(AUTOSAVE, JSON.stringify(store.toJSON())); } catch { /* 용량 초과 등은 무시 */ } }
+  autosave() { try { localStorage.setItem(AUTOSAVE, JSON.stringify({ ...store.toJSON(), editedAt: store.lastEdit ? new Date(store.lastEdit).toISOString() : null })); } catch { /* 용량 초과 등은 무시 */ } }
   restore() { try { return JSON.parse(localStorage.getItem(AUTOSAVE) || 'null'); } catch { return null; } }
   // 시작할 때 자동 저장본을 따로 떠 둔다(최근 5개). 다른 파일을 열어 덮어써도 되살릴 수 있게.
   backupAutosave() {
