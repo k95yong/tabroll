@@ -8,7 +8,11 @@ export class Inspector {
   constructor(el, editor, transport) {
     Object.assign(this, { el, ed: editor, tr: transport });
     el.addEventListener('change', e => this.#apply(e.target));
-    el.addEventListener('click', e => { const b = e.target.closest('[data-act]'); if (b) this.#act(b.dataset.act); });
+    el.addEventListener('click', e => {
+      const st = e.target.closest('[data-str]');
+      if (st) { const n = store.primary(); if (n) { store.edit(() => { n.lockString = +st.dataset.str; n.src = 'user'; }); this.tr.audition(n); } return; }
+      const b = e.target.closest('[data-act]'); if (b) this.#act(b.dataset.act);
+    });
   }
 
   render() {
@@ -23,6 +27,8 @@ export class Inspector {
       <div class="big">${noteName(n.midi)} <span>${tab.string ? `${tab.string}번 줄 ${tab.fret}프렛` : '칠 수 없는 음'}</span></div>
       <label>음높이 <select data-f="midi">${pitches.join('')}</select></label>
       <label>줄 <select data-f="lockString">${opt('', `자동 (${tab.string ? STRING_NAMES[tab.string] + ' ' + tab.fret : '-'})`, n.lockString || '')}${strings.map(c => opt(c.string, `${c.string}번 ${STRING_NAMES[c.string]} · ${c.fret}프렛`, n.lockString || '')).join('')}</select></label>
+      <div class="strings">${strings.map(c => `<button data-str="${c.string}" class="${c.string === tab.string ? 'on' : ''}" title="${c.string}번 줄 ${c.fret}프렛">${c.string}<small>${STRING_NAMES[c.string]}·${c.fret}</small></button>`).join('')}</div>
+      <button data-act="same" title="곡 전체에서 ${noteName(n.midi)} 음을 지금 줄(${tab.string}번)로 맞춤 (G)">같은 ${noteName(n.midi)} 전부 ${tab.string}번 줄로</button>
       <label>주법 <select data-f="tech">${opt('', '없음', n.tech)}${TECHS.map(t => opt(t, TECH_LABEL[t], n.tech)).join('')}</select></label>
       ${n.tech === 'b' ? `<label>벤딩 <select data-f="bend">${[1, 2, 3, 4].map(b => opt(b, { 1: '½음', 2: '1음 (full)', 3: '1½음', 4: '2음' }[b], n.bend || 2)).join('')}</select></label>` : ''}
       <label>시작(초) <input data-f="t" type="number" step="0.005" value="${n.t.toFixed(3)}"></label>
@@ -46,6 +52,8 @@ export class Inspector {
         <button data-act="up">반음 ↑</button><button data-act="down">반음 ↓</button>
         <button data-act="oup">옥타브 ↑</button><button data-act="odown">옥타브 ↓</button>
         <button data-act="quant">칸에 맞추기</button><button data-act="auto">줄 자동</button>
+        <button data-act="sup" title="⌥↑">줄 ↑ (가는 줄)</button><button data-act="sdown" title="⌥↓">줄 ↓ (굵은 줄)</button>
+        <button data-act="same">같은 음 전부 같은 줄로</button>
         <button data-act="notech">주법 지우기</button><button data-act="copy">복사</button>
         <button data-act="loop">이 구간 반복</button><button data-act="del" class="danger">삭제</button>
       </div>`;
@@ -70,6 +78,7 @@ export class Inspector {
     ({
       hear: () => store.selected().forEach(n => this.tr.audition(n)),
       dup: () => ed.duplicate(), del: () => ed.remove(), copy: () => ed.copy(),
+      same: () => ed.setStringSamePitch(), sup: () => ed.cycleString(-1), sdown: () => ed.cycleString(1),
       up: () => ed.transpose(1), down: () => ed.transpose(-1), oup: () => ed.transpose(12), odown: () => ed.transpose(-12),
       quant: () => ed.quantize('sel'), auto: () => ed.setString(0), notech: () => ed.setTech(''),
       loop: () => { const s = store.selected(); this.tr.setLoop(Math.min(...s.map(n => n.t)) - 0.1, Math.max(...s.map(n => n.te)) + 0.1, true); },

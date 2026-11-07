@@ -65,6 +65,29 @@ export class Editor {
     this.#each(n => { if (!bad.includes(n)) n.lockString = s || null; },
       !s ? '줄 자동 배치' : bad.length ? `${s}번 줄로 고정 (그 줄로 칠 수 없는 ${bad.length}음은 그대로)` : `${s}번 줄로 고정`);
   }
+  // 줄을 한 칸씩 옮긴다. dir -1 = 가는 줄 쪽(1번), +1 = 굵은 줄 쪽(6번)
+  cycleString(dir) {
+    const sel = store.selected(); if (!sel.length) return;
+    let moved = 0;
+    store.edit(() => sel.forEach(n => {
+      const cur = store.tab.get(n.id)?.string, cs = candidates(n.midi, undefined, store.P.maxFret).map(c => c.string).sort((a, b) => a - b);
+      const next = dir < 0 ? cs.filter(s => s < cur).at(-1) : cs.find(s => s > cur);
+      if (next) { n.lockString = next; n.src = 'user'; moved++; }
+    }));
+    const n = store.primary(), t = n && store.tab.get(n.id);
+    this.notify(moved ? (sel.length === 1 ? `${t.string}번 줄 ${t.fret}프렛` : `${moved}음 줄 옮김`) : '더 옮길 줄이 없습니다');
+  }
+  // 고른 음과 같은 높이의 음을 곡 전체에서 같은 줄로 맞춘다 (s 없으면 고른 음이 지금 쓰는 줄)
+  setStringSamePitch(s, base = store.selected()) {
+    if (!base.length) return;
+    const want = new Map(base.map(n => [n.midi, s || store.tab.get(n.id)?.string]));
+    let count = 0;
+    store.edit(() => store.notes.forEach(n => {
+      const st = want.get(n.midi);
+      if (st && candidates(n.midi, undefined, store.P.maxFret).some(c => c.string === st)) { n.lockString = st; count++; }
+    }));
+    this.notify(`같은 음 ${count}개를 ${[...want.values()].join('·')}번 줄로 맞췄습니다`);
+  }
   copy() {
     const sel = store.selected().sort((a, b) => a.t - b.t); if (!sel.length) return;
     const t0 = sel[0].t; this.clip = sel.map(({ id, ...n }) => ({ ...n, t: n.t - t0, te: n.te - t0 }));
@@ -183,6 +206,12 @@ export class Editor {
     // ---------- TAB 줄: 숫자를 위아래로 끌면 줄이 바뀐다 ----------
     tabC.addEventListener('mousedown', e => {
       const [x, y] = pos(e, tabC), n = v.hitTab(x, y);
+      if (n?.ghost) { // 흐린 후보 숫자를 누르면 그 음만 그 줄로 (⇧ 누르면 같은 음 전부)
+        const src = store.get(n.id);
+        if (e.shiftKey) this.setStringSamePitch(n.string, [src]);
+        else { store.edit(() => { src.lockString = n.string; }); this.tr.audition(src); }
+        return;
+      }
       if (!n) { store.clearSel(); return; }
       store.select(n.id, { add: e.shiftKey }); this.tr.audition(n);
       const src = store.get(n.id), y0 = y;

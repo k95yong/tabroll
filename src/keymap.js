@@ -40,6 +40,8 @@ export function buildKeymap(a) {
     ['편집', ['Enter'], '선택한 음 듣기', () => a.hearSel()],
     ['편집', ['Mod+Z', 'Mod+Shift+Z'], '되돌리기 / 다시하기', null],
     ['TAB', ['Alt+1'], '줄 고정 (⌥1~⌥6), ⌥0 자동 — TAB 숫자를 위아래로 끌어도 됨', null],
+    ['TAB', ['Alt+ArrowUp', 'Alt+ArrowDown'], '다른 줄로 한 칸 (↑ 가는 줄 쪽 / ↓ 굵은 줄 쪽) — 음을 고르면 TAB에 흐린 후보 숫자가 뜨고, 누르면 그 줄로', null],
+    ['TAB', ['G'], '고른 음과 같은 높이의 음을 곡 전체에서 같은 줄로 맞추기 (흐린 숫자를 ⇧클릭해도 됨)', () => a.ed.setStringSamePitch()],
     ['TAB', ['H', 'P', 'B', 'R', 'S', 'V', 'X'], '해머링 · 풀링 · 벤딩 · 릴리즈 · 슬라이드 · 비브라토 · 뮤트', null],
     ['TAB', ['Shift+B'], '벤딩 크기 바꾸기 (½ → full → 1½)', () => a.cycleBend()],
     ['TAB', ['0'], '주법 지우기', () => a.ed.setTech('')],
@@ -62,6 +64,7 @@ export function extraHandler(a) {
       return true;
     }
     if (/^Alt\+[0-6]$/.test(combo)) { a.ed.setString(+combo.slice(4)); return true; }
+    if (combo === 'Alt+ArrowUp' || combo === 'Alt+ArrowDown') { a.ed.cycleString(combo.endsWith('Up') ? -1 : 1); return true; }
     if (/^[HPBRSVX]$/.test(combo)) { a.ed.setTech(combo.toLowerCase()); return true; }
     switch (combo) {
       case '-': case '=': { const i = rates.indexOf(a.tr.rate), j = Math.max(0, Math.min(rates.length - 1, (i < 0 ? 7 : i) + (combo === '=' ? 1 : -1))); a.setRate(rates[j]); return true; }

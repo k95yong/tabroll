@@ -1,10 +1,10 @@
 // 화면 그리기: 피아노 롤(눈금자·파형·음 막대), TAB 줄, 전체 개요. 좌표 변환과 마우스 적중 판정도 여기서 한다.
 import { store, noteName } from './state.js';
-import { STRING_NAMES } from './tab.js';
+import { STRING_NAMES, candidates } from './tab.js';
 import { peaksIn } from './waveform.js';
 
 export const KEY_W = 48, RULER = 20, WAVE = 36, TOP = RULER + WAVE;
-export const TAB_TOP = 22, TAB_GAP = 20;
+export const TAB_TOP = 22, TAB_GAP = 20, TAB_PAD = 5;
 const BLACK = new Set([1, 3, 6, 8, 10]);
 const TECH_SHORT = { h: 'h', p: 'p', r: 'r', s: '/', v: '~' };
 
@@ -78,14 +78,13 @@ export class View {
     const x0 = this.X(n.t), x1 = Math.max(this.X(n.te), x0 + 4);
     return { n, part: x1 - x0 > 16 && x - x0 < 6 ? 'l' : x1 - x < 6 ? 'r' : 'mid' };
   }
+  // TAB 줄 클릭: 다른 줄 후보(흐린 숫자)를 먼저, 그다음 실제 숫자를 찾는다
   hitTab(x, y) {
     const s = Math.round((y - TAB_TOP) / TAB_GAP) + 1;
-    let best = null, d = 14;
-    for (const n of store.tab.values()) {
-      if (n.string !== s) continue;
-      const dx = Math.abs(this.X(n.t) + 5 - x); if (dx < d) { d = dx; best = n; }
-    }
-    return best;
+    const g = (this.ghosts || []).find(o => o.string === s && x >= o.x0 && x <= o.x1);
+    if (g) return { ghost: true, id: g.id, string: s };
+    const spot = (this.tabSpots || []).find(o => o.string === s && x >= o.x0 && x <= o.x1);
+    return spot ? store.tab.get(spot.id) : null;
   }
   notesInBox(b) {
     const [x0, x1] = [Math.min(b.x0, b.x1), Math.max(b.x0, b.x1)], [y0, y1] = [Math.min(b.y0, b.y1), Math.max(b.y0, b.y1)];
@@ -179,12 +178,14 @@ export class View {
     }
     g.font = '700 11px -apple-system'; g.fillStyle = '#333'; g.fillText('TAB', 6, TAB_TOP - 8);
     for (let b = store.barAt(this.s); b <= store.barAt(this.e); b++) { const x = this.X(store.barStart(b)); if (x >= KEY_W) { g.fillStyle = '#333'; g.fillRect(x, TAB_TOP, 1.5, TAB_GAP * 5); } }
-    // 빠른 구간에서 숫자가 겹치면 같은 줄의 앞 숫자 바로 뒤로 민다
+    // 숫자는 음 시작에서 TAB_PAD 만큼 띄워 마디선·박선에 붙지 않게 한다.
+    // 빠른 구간에서 숫자가 겹치면 같은 줄의 앞 숫자 바로 뒤로 민다.
     const lastX = {};
+    this.tabSpots = [];
     for (const n of [...store.tab.values()].sort((a, b) => a.t - b.t)) {
       if (n.t < this.s || n.t > this.e) continue;
       const on = store.sel.has(n.id), y = TAB_TOP + (n.string - 1) * TAB_GAP;
-      const x = Math.max(this.X(n.t), (lastX[n.string] ?? -1e9) + 2);
+      const x = Math.max(this.X(n.t) + TAB_PAD, (lastX[n.string] ?? -1e9) + 3);
       const label = n.fret < 0 ? '?' : n.tech === 'x' ? 'x' : String(n.fret);
       g.font = `${on ? 800 : 600} 13px -apple-system`;
       const tw = g.measureText(label).width;
@@ -192,8 +193,24 @@ export class View {
       g.fillStyle = on ? '#db2777' : n.fret < 0 ? '#dc2626' : n.lockString ? '#1d4ed8' : '#111';
       g.fillText(label, x, y + 5);
       lastX[n.string] = x + tw;
+      this.tabSpots.push({ id: n.id, string: n.string, x0: x - 3, x1: x + tw + 3 });
       const mark = n.tech === 'b' ? `b${n.bend || 2}` : TECH_SHORT[n.tech];
       if (mark) { g.font = '10px -apple-system'; g.fillStyle = '#b45309'; g.fillText(mark, x + tw + 2, y - 3); }
+    }
+    // 선택한 음은 다른 줄로 칠 수 있는 자리를 흐리게 보여 준다. 클릭하면 그 줄로 바뀐다.
+    this.ghosts = [];
+    const sel = store.selected();
+    if (sel.length && sel.length <= 8) for (const n of sel) {
+      const cur = store.tab.get(n.id); if (!cur || n.t < this.s || n.t > this.e) continue;
+      for (const c of candidates(n.midi, undefined, store.P.maxFret)) {
+        if (c.string === cur.string) continue;
+        const x = this.X(n.t) + TAB_PAD, y = TAB_TOP + (c.string - 1) * TAB_GAP, label = String(c.fret);
+        g.font = '600 12px -apple-system'; const tw = g.measureText(label).width;
+        g.setLineDash([3, 2]); g.strokeStyle = '#db277799'; g.strokeRect(x - 2.5, y - 7.5, tw + 5, 15); g.setLineDash([]);
+        g.fillStyle = '#f7f7f5'; g.fillRect(x - 2, y - 7, tw + 4, 14);
+        g.fillStyle = '#db277799'; g.fillText(label, x, y + 4);
+        this.ghosts.push({ id: n.id, string: c.string, x0: x - 3, x1: x + tw + 3 });
+      }
     }
     const px = this.X(this.tr.clock()); if (px >= KEY_W) { g.fillStyle = '#16a34a'; g.fillRect(px - 1, 0, 2, h); }
   }

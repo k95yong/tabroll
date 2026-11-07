@@ -88,6 +88,22 @@ try {
   await page.mouse.move(tb.x + tn.x, tb.y + tn.y + 20, { steps: 4 }); await page.mouse.up();
   check(await page.evaluate(id => tabroll.store.tab.get(id).string, tn.id) === tn.s + 1, 'TAB 숫자 끌어서 줄 바꾸기');
 
+  // 흐린 후보 숫자 클릭으로 줄 바꾸기, ⌥↑↓, 같은 음 전부 같은 줄
+  await page.evaluate(() => tabroll.store.select(3));
+  await page.waitForTimeout(100);
+  const gh = await page.evaluate(() => { tabroll.view.render(); const g = tabroll.view.ghosts[0]; return g && { x: (g.x0 + g.x1) / 2, y: 22 + (g.string - 1) * 20, s: g.string }; });
+  await page.mouse.click(tb.x + gh.x, tb.y + gh.y);
+  check(await page.evaluate(() => tabroll.store.tab.get(3).string) === gh.s, 'TAB의 흐린 후보 숫자를 눌러 줄 바꾸기');
+  const s0 = await page.evaluate(() => tabroll.store.tab.get(3).string);
+  await page.keyboard.press('Alt+ArrowDown');
+  const s1 = await page.evaluate(() => tabroll.store.tab.get(3).string);
+  check(s1 !== s0, '⌥↓ 로 다른 줄로 옮기기', `${s0}→${s1}`);
+  await page.keyboard.press('g');
+  const same = await page.evaluate(() => { const { store } = tabroll, m = store.get(3).midi, st = store.tab.get(3).string; return store.notes.filter(n => n.midi === m).every(n => store.tab.get(n.id).string === st); });
+  check(same, 'G 로 같은 음 전부 같은 줄로');
+  const pad = await page.evaluate(() => { const { view, store } = tabroll; view.render(); return view.tabSpots.every(sp => sp.x0 + 3 >= view.X(store.tab.get(sp.id).t) + 4); });
+  check(pad, 'TAB 숫자가 마디선·박선에서 떨어져 그려짐');
+
   // 재생, 단축키 화면
   await page.keyboard.press('Space'); await page.waitForTimeout(400); await page.keyboard.press('Space');
   check(await page.evaluate(() => tabroll.tr.cursor > 0), '재생 후 위치가 앞으로 감');
