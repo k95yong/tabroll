@@ -4,93 +4,101 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>TabRoll – 막대로 따는 기타 TAB 채보기</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎸</text></svg>">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <header id="top">
-  <div class="brand">🎸 TabRoll <input id="title" value="새 채보" title="곡 제목"></div>
+  <div class="brand">🎸 <b>TabRoll</b> <input id="title" value="새 채보" title="곡 제목" spellcheck="false"></div>
+
   <div class="grp">
     <button id="openMedia" title="음원·영상 열기 (⌘O)">📂 음원/영상</button>
-    <button id="openProject" title="프로젝트·MIDI·노트 JSON 불러오기">📥 불러오기</button>
+    <button id="openProject" title="프로젝트(.json)·MIDI 불러오기">📥 불러오기</button>
     <button id="saveProject" title="프로젝트 저장 (⌘S)">💾 저장</button>
-    <div class="menu"><button>⬇ 내보내기</button>
+    <div class="menu"><button aria-haspopup="true">⬇ 내보내기 ▾</button>
       <div class="drop">
-        <button id="exPrint">TAB 인쇄 / PDF (⌘P)</button>
-        <button id="exAscii">TAB 텍스트 (.txt)</button>
-        <button id="exMidi">MIDI (.mid)</button>
-        <button id="exJson">프로젝트 파일 다른 이름으로 (⇧⌘S)</button>
+        <button id="exPrint">🖨 TAB 인쇄 / PDF <kbd>⌘P</kbd></button>
+        <button id="exAscii">📝 TAB 텍스트 (.txt)</button>
+        <button id="exMidi">🎹 MIDI (.mid)</button>
+        <button id="exJson">💾 다른 이름으로 저장 <kbd>⇧⌘S</kbd></button>
       </div>
     </div>
   </div>
-  <div class="grp">
+
+  <div class="grp transport">
     <button id="play" class="primary" title="재생/정지 (Space)">▶</button>
-    <button id="loop" title="보이는 구간 반복 (L)">🔁</button>
+    <button id="loop" title="반복 (L) · 눈금자를 끌어 구간 지정">🔁</button>
     <button id="metro" title="메트로놈 (M)">♩</button>
     <button id="rec" title="MIDI 건반 녹음 (K)">⏺</button>
-    <label title="속도 (- / =)">속도 <select id="rate"><option>0.5</option><option>0.6</option><option>0.7</option><option>0.8</option><option>0.9</option><option selected>1</option><option>1.1</option></select></label>
+    <button id="follow" class="on" title="재생 위치 따라가기 (F)">⇥</button>
+    <span id="time" class="mono" title="재생 위치">0.00s</span>
+    <label title="속도 (- / =)">속도 <select id="rate"></select></label>
   </div>
+
   <div class="grp mix">
     <label title="원음 볼륨 (1: 원음만)">원음 <input id="volMedia" type="range" min="0" max="1" step="0.05" value="1"></label>
-    <label title="악보 소리 볼륨 (2: 악보만, 3: 둘 다)">악보 <input id="volNotes" type="range" min="0" max="1" step="0.05" value="0.6"></label>
+    <label title="악보 소리 볼륨 (2: 악보만 · 3: 둘 다)">악보 <input id="volNotes" type="range" min="0" max="1" step="0.05" value="0.6"></label>
   </div>
+
   <div class="grp">
     <label title="템포">BPM <input id="bpm" type="number" min="30" max="300" step="0.1" value="120"></label>
-    <label title="1마디 첫 박이 나오는 시간(초)">1마디 시작 <input id="offset" type="number" step="0.01" value="0"></label>
-    <button id="setOffset" title="지금 재생 위치를 1마디 시작으로 (O)">⤓ 지금=1마디</button>
-    <label>박자 <select id="beats"><option>3</option><option selected>4</option><option>6</option></select>/4</label>
+    <label title="1마디 첫 박이 나오는 시간(초)">1마디 <input id="offset" type="number" step="0.01" value="0"></label>
+    <button id="setOffset" title="지금 재생 위치를 1마디 시작으로 (O)">⤓ 여기가 1마디</button>
+    <label title="한 마디 박 수"><select id="beats"><option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option></select>/4</label>
   </div>
-  <div class="grp">
+
+  <div class="grp seg" title="막대가 붙는 칸">
     <span class="lab">칸</span>
     <button data-snap="8">8분</button><button data-snap="16" class="on">16분</button><button data-snap="24">6연음</button><button data-snap="32">32분</button><button data-snap="0">자유</button>
   </div>
-  <div class="grp"><button id="help" title="단축키 (?)">⌨ 단축키</button></div>
+
+  <div class="grp right">
+    <button id="undo" title="되돌리기 (⌘Z)">↶</button><button id="redo" title="다시하기 (⇧⌘Z)">↷</button>
+    <button id="help" title="단축키 (?)">⌨ 단축키</button>
+  </div>
 </header>
 
-<div id="status"><span id="midiState">건반 확인 중…</span><span id="sel"></span><span id="msg"></span><span id="saved"></span></div>
+<div id="status"><span id="midiState">건반 확인 중…</span><span id="selInfo"></span><span id="saved"></span><span id="toast" role="status"></span></div>
 
 <main>
   <section id="editor">
-    <canvas id="overview" height="34" title="전체 곡. 클릭하면 그 자리로 이동"></canvas>
-    <canvas id="roll"></canvas>
-    <canvas id="tab" height="150"></canvas>
+    <canvas id="overview" title="전체 곡 · 클릭하거나 끌어서 이동"></canvas>
+    <div id="rollWrap">
+      <canvas id="roll"></canvas>
+      <div id="welcome" hidden>
+        <div class="card">
+          <h2>🎸 TabRoll로 채보 시작하기</h2>
+          <ol>
+            <li><b>음원이나 영상</b>을 엽니다. 이 화면에 끌어다 놓아도 됩니다.</li>
+            <li><b>BPM</b>을 맞추고, 1마디 첫 박에서 멈춘 다음 <kbd>O</kbd>를 누릅니다.</li>
+            <li>빈 곳을 <b>더블클릭</b>해 음을 놓고, 막대를 끌어 높이·위치·길이를 맞춥니다.</li>
+            <li><kbd>3</kbd>을 누르면 원음과 악보가 같이 들립니다. 눈금자를 끌면 그 구간만 반복합니다.</li>
+            <li>아래 <b>TAB</b>에 줄·프렛이 자동으로 붙습니다. ⬇ 내보내기로 PDF를 만듭니다.</li>
+          </ol>
+          <div class="acts">
+            <button class="primary" data-w="media">📂 음원/영상 열기</button>
+            <button data-w="project">📥 프로젝트 불러오기</button>
+            <button data-w="demo">데모 열기</button>
+            <button data-w="close">닫기</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <canvas id="tab"></canvas>
   </section>
   <aside id="side">
     <video id="media" playsinline preload="auto"></video>
-    <div id="mediaName">음원·영상을 열거나 이 창에 끌어다 놓으십시오</div>
-    <div id="noteInfo"></div>
+    <div id="mediaName" class="dim">음원·영상이 없습니다</div>
+    <div id="inspector"></div>
   </aside>
 </main>
 
-<input id="fileMedia" type="file" accept="audio/*,video/*" hidden>
-<input id="fileProject" type="file" accept=".json,.mid,.midi,application/json,audio/midi" hidden>
-
 <div id="helpBox" hidden>
   <div class="card">
-    <h2>단축키</h2>
-    <div class="cols">
-      <div>
-        <h3>재생</h3>
-        <p><kbd>Space</kbd> 재생/정지 · <kbd>⇧Space</kbd> 보이는 구간 처음부터</p>
-        <p><kbd>L</kbd> 보이는 구간 반복 · <kbd>M</kbd> 메트로놈 · <kbd>K</kbd> 건반 녹음</p>
-        <p><kbd>-</kbd> <kbd>=</kbd> 속도 내리기/올리기 · <kbd>1</kbd> 원음만 <kbd>2</kbd> 악보만 <kbd>3</kbd> 둘 다</p>
-        <p><kbd>O</kbd> 지금 위치를 1마디 시작으로</p>
-        <h3>화면</h3>
-        <p><kbd>[</kbd> <kbd>]</kbd> 앞/뒤 마디 · <kbd>Z</kbd> 확대 <kbd>⇧Z</kbd> 축소 · 휠 = 좌우 이동, <kbd>⌘</kbd>+휠 = 확대</p>
-        <p>위쪽 눈금(마디 번호 줄)을 클릭하면 그 자리부터 재생 위치 이동</p>
-      </div>
-      <div>
-        <h3>음 편집 (선택한 음)</h3>
-        <p>막대 가운데 끌기 = 이동 · 양 끝 끌기 = 길이 · 빈 곳 더블클릭 = 추가 · <kbd>⇧</kbd> 누르고 끌기 = 칸 무시</p>
-        <p><kbd>↑</kbd> <kbd>↓</kbd> 반음 · <kbd>⇧↑</kbd> <kbd>⇧↓</kbd> 옥타브 · <kbd>←</kbd> <kbd>→</kbd> 한 칸 이동 · <kbd>⇧←</kbd> <kbd>⇧→</kbd> 길이 한 칸</p>
-        <p><kbd>Tab</kbd> / <kbd>⇧Tab</kbd> 다음/이전 음 선택 · <kbd>N</kbd> 재생 위치에 음 추가 · <kbd>⌘D</kbd> 복제</p>
-        <p><kbd>Delete</kbd> 삭제 · <kbd>Q</kbd> 칸에 맞추기 · <kbd>⇧Q</kbd> 보이는 음 전부 맞추기 · <kbd>Enter</kbd> 선택한 음 듣기</p>
-        <p><kbd>⌘Z</kbd> 되돌리기 · <kbd>⇧⌘Z</kbd> 다시하기</p>
-        <h3>TAB</h3>
-        <p><kbd>⌥1</kbd>~<kbd>⌥6</kbd> 줄 고정 · <kbd>⌥0</kbd> 자동</p>
-        <p>주법 <kbd>H</kbd> 해머링 <kbd>P</kbd> 풀링 <kbd>B</kbd> 벤딩 <kbd>R</kbd> 릴리즈 <kbd>S</kbd> 슬라이드 <kbd>V</kbd> 비브라토 <kbd>X</kbd> 뮤트 <kbd>0</kbd> 지우기</p>
-      </div>
-    </div>
-    <p class="dim">작업은 이 브라우저에 자동 저장됩니다. 다른 기기로 옮기려면 💾 저장으로 프로젝트 파일을 만드십시오. <kbd>Esc</kbd> 닫기</p>
+    <h2>단축키 <span class="dim">— 막대를 끌 때 ⇧를 누르면 칸을 무시합니다 · Esc 닫기</span></h2>
+    <div id="helpBody" class="cols"></div>
+    <p class="dim">마우스: 막대 가운데 끌기 = 이동 · 양 끝 = 길이 · 빈 곳 끌기 = 여러 개 선택 · ⇧클릭 = 선택 추가 · 빈 곳 더블클릭 = 추가 · 눈금자 끌기 = 반복 구간 · 파형 줄 클릭 = 재생 위치 · TAB 숫자 위아래로 끌기 = 줄 바꾸기</p>
+    <p class="dim">작업은 이 브라우저에 자동 저장됩니다. 다른 기기로 옮기려면 💾 저장으로 프로젝트 파일을 만드십시오.</p>
   </div>
 </div>
 
